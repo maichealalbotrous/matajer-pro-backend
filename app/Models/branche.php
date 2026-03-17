@@ -21,6 +21,16 @@ class branche extends Model
 
     public function users()
     {
-        return $this->hasMany(User::class);
+        return $this->hasMany(User::class, 'branch_id');
+    }
+
+    protected function products()
+    {
+        return $this->hasMany(Product::class, 'branch_id');
+    }
+
+    protected function inventories()
+    {
+        return $this->hasMany(inventory::class, 'branch_id');
     }
 }

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\Branch;
 use App\Http\Controllers\Controller;
 use App\Models\branche;
 use App\Models\subscription_keys;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 
 class BranchController extends Controller
@@ -13,24 +15,34 @@ class BranchController extends Controller
    
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'location' => 'nullable|string',
-        ]);
+       $request->validate([
+        'name' => 'required|string|max:255',
+        'location' => 'nullable|string',
+    ]);
 
-        $branch = branche::create([
-            'name' => $request->name,
-            'location' => $request->location,
-            'subscription_code' => null, 
-            'expiry_date' => now(),      
-            'is_active' => false,        
-        ]);
+    $user = User::find(Auth::id());
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'تم تسجيل الفرع بنجاح، يرجى الانتقال لخطوة التفعيل',
-            'branch_id' => $branch->id
-        ], 201);
+    if ($user->branch_id) {
+        return response()->json(['message' => 'لديك فرع مسجل بالفعل لهذا الحساب'], 403);
+    }
+
+    $branch = branche::create([
+        'name' => $request->name,
+        'location' => $request->location,
+        'subscription_code' => null, 
+        'expiry_date' => now(),      
+        'is_active' => false,        
+    ]);
+
+    $user->update([
+        'branch_id' => $branch->id
+    ]);
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'تم إنشاء الفرع وربطه بحسابك. يرجى التفعيل بكود الاشتراك.',
+        'branch_id' => $branch->id
+    ], 201);
     }
 
     public function activate(Request $request)

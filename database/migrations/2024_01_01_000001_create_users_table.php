@@ -17,8 +17,9 @@ return new class extends Migration
             $table->string('phone')->unique(); 
             $table->string('password');
             $table->foreignId('branch_id')
+            ->nullable()
             ->constrained('branches')
-            ->cascadeOnDelete()
+            ->cascadeOnUpdate()
             ->cascadeOnDelete();
             $table->enum('role', ['admin', 'employee','super-admin'])->default('employee');
             $table->rememberToken();
