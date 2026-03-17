@@ -9,34 +9,28 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-   public function registerAdmin(Request $request)
+  public function registerAdmin(Request $request)
 {
     $request->validate([
-        'name'      => 'required|string',
-        'phone'     => 'required|string|unique:users',
-        'password'  => 'required|min:6',
-        'branch_id' => 'required|exists:branches,id'
+        'name'     => 'required|string',
+        'phone'    => 'required|string|unique:users',
+        'password' => 'required|min:6',
     ]);
-
-    $existsAdmin = User::where('branch_id', $request->branch_id)
-                       ->where('role', 'admin')
-                       ->exists();
-
-    if ($existsAdmin) {
-        return response()->json([
-            'message' => 'هذا الفرع لديه مدير بالفعل. لا يمكن إنشاء مدير آخر.'
-        ], 403);
-    }
 
     $user = User::create([
-        'name'      => $request->name,
-        'phone'     => $request->phone,
-        'password'  => Hash::make($request->password),
-        'branch_id' => $request->branch_id,
-        'role'      => 'admin', 
+        'name'     => $request->name,
+        'phone'    => $request->phone,
+        'password' => Hash::make($request->password),
+        'role'     => 'admin', 
     ]);
 
-    return response()->json(['message' => 'تم تسجيل المدير بنجاح', 'user' => $user], 201);
+    $token = $user->createToken('sand_token')->plainTextToken;
+
+    return response()->json([
+        'message' => 'تم إنشاء حساب المدير. يرجى إكمال بيانات الفرع الآن.',
+        'user'    => $user,
+        'token'   => $token
+    ], 201);
 }
 
 
@@ -53,9 +47,15 @@ public function login(Request $request)
         return response()->json(['message' => 'بيانات الدخول غير صحيحة'], 401);
     }
 
-    $branch = $user->branch; 
-    if (!$branch->is_active) {
-        return response()->json(['message' => 'اشتراك الفرع غير مفعل أو منتهي'], 403);
+    if ($user->branch_id) {
+        $branch = $user->branch; 
+        if (!$branch->is_active) {
+            return response()->json(['message' => 'اشتراك الفرع غير مفعل أو منتهي'], 403);
+        }
+    } else {
+        if ($user->role !== 'admin') {
+            return response()->json(['message' => 'هذا الحساب غير مرتبط بفرع'], 403);
+        }
     }
 
     $token = $user->createToken('sand_token')->plainTextToken;
@@ -64,7 +64,8 @@ public function login(Request $request)
         'message' => 'تم تسجيل الدخول بنجاح',
         'user'    => $user,
         'role'    => $user->role, 
-        'token'   => $token
+        'token'   => $token,
+        'has_branch' => $user->branch_id ? true : false 
     ]);
 }
 
