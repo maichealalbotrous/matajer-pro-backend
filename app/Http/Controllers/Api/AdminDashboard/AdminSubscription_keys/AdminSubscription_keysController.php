@@ -14,7 +14,7 @@ class AdminSubscription_keysController extends Controller
 
     public function index()
     {
-        if(Auth::user()->email != 'admin@admin.com'){
+        if(Auth::user()->phone != '0900000000' || Auth::user()->role != 'super_admin'){
             return response()->json(['message' => 'this section is for admin only , هذا القسم خاص بالمدير فقط (المبرمج)'], 401);
         }
         return response()->json(subscription_keys::all());
@@ -23,7 +23,7 @@ class AdminSubscription_keysController extends Controller
     
     public function generate(Request $request)
     {
-          if(Auth::user()->email != 'admin@admin.com'){
+        if(Auth::user()->phone != '0900000000' || Auth::user()->role != 'super_admin'){
             return response()->json(['message' => 'this section is for admin only , هذا القسم خاص بالمدير فقط (المبرمج)'], 401);
         }
         
