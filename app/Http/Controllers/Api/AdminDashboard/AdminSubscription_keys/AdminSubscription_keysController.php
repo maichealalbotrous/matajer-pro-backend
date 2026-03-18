@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\AdminDashboard\AdminSubscription_keys;
 use App\Http\Controllers\Controller;
 use App\Models\subscription_keys;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Pest\Support\Str;
 
 class AdminSubscription_keysController extends Controller
@@ -13,12 +14,19 @@ class AdminSubscription_keysController extends Controller
 
     public function index()
     {
+        if(Auth::user()->email != 'admin@admin.com'){
+            return response()->json(['message' => 'this section is for admin only , هذا القسم خاص بالمدير فقط (المبرمج)'], 401);
+        }
         return response()->json(subscription_keys::all());
     }
     
     
     public function generate(Request $request)
     {
+          if(Auth::user()->email != 'admin@admin.com'){
+            return response()->json(['message' => 'this section is for admin only , هذا القسم خاص بالمدير فقط (المبرمج)'], 401);
+        }
+        
         $request->validate([
             'count' => 'required|integer|min:1|max:100', 
             'duration_months' => 'required|integer|min:1|max:24', 
