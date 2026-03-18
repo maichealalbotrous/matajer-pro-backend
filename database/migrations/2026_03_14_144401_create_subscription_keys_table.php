@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('subscription_keys', function (Blueprint $table) {
             $table->id();
+         
         $table->string('license_key')->unique(); 
         $table->integer('duration_months'); 
         $table->date('activated_at')->nullable();
@@ -23,7 +24,7 @@ return new class extends Migration
         });
     }
 
-    /**
+    /*
      * Reverse the migrations.
      */
     public function down(): void
