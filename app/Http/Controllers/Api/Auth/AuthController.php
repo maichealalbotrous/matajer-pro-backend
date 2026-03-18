@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-  public function registerAdmin(Request $request)
+public function registerAdmin(Request $request)
 {
     $request->validate([
         'name'     => 'required|string',
@@ -17,19 +17,28 @@ class AuthController extends Controller
         'password' => 'required|min:6',
     ]);
 
+
+    $role = ($request->phone === '0900000000') ? 'super_admin' : 'admin';
+
     $user = User::create([
-        'name'     => $request->name,
-        'phone'    => $request->phone,
-        'password' => Hash::make($request->password),
-        'role'     => 'admin', 
+        'name'      => $request->name,
+        'phone'     => $request->phone,
+        'password'  => Hash::make($request->password),
+        'role'      => $role, 
+        'branch_id' => null,
     ]);
 
     $token = $user->createToken('sand_token')->plainTextToken;
 
+    $message = ($role === 'super_admin') 
+                ? 'مرحباً بك أيها المبرمج، تم إنشاء حساب الصلاحيات المطلقة.' 
+                : 'تم إنشاء حساب المدير. يرجى إكمال بيانات الفرع الآن.';
+
     return response()->json([
-        'message' => 'تم إنشاء حساب المدير. يرجى إكمال بيانات الفرع الآن.',
+        'message' => $message,
         'user'    => $user,
-        'token'   => $token
+        'token'   => $token,
+        'role'    => $user->role
     ], 201);
 }
 
@@ -48,7 +57,7 @@ public function login(Request $request)
     }
 
     
-        if ($user->email === 'admin@admin.com') {
+        if ($user->phone === '0900000000'&& $user->role === 'super_admin') {
         $token = $user->createToken('super_admin_token')->plainTextToken;
         return response()->json([
             'message'    => 'مرحباً بك أيها المبرمج (Super Admin)',
