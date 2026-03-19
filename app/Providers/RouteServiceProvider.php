@@ -77,6 +77,6 @@ class RouteServiceProvider extends ServiceProvider
     {
         Route::prefix('api')
              ->middleware('api')
-             ->group(base_path('routes/AdminDashboard/AdminSupKey_api.php'));
+             ->group(base_path('routes/SuperAdminDashboard/SuperAdminSupKey_api.php'));
     }
 }

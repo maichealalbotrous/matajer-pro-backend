@@ -21,7 +21,7 @@ return new class extends Migration
             ->constrained('branches')
             ->cascadeOnUpdate()
             ->cascadeOnDelete();
-            $table->enum('role', ['admin', 'employee','super-admin'])->default('employee');
+            $table->enum('role', ['admin', 'employee','super_admin'])->default('employee');
             $table->rememberToken();
             $table->timestamps();
         });

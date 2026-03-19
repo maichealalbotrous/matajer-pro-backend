@@ -15,7 +15,7 @@ return new class extends Migration
         $table->id();
         $table->string('name'); 
         $table->string('location')->nullable(); 
-        $table->string('subscription_code')->unique(); 
+        $table->string('subscription_code')->unique()->nullable(); 
         $table->date('expiry_date'); 
         $table->boolean('is_active')->default(true); 
         $table->timestamps();

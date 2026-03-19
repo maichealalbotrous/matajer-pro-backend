@@ -46,8 +46,8 @@ public function registerAdmin(Request $request)
 public function login(Request $request)
 {
     $request->validate([
-        'phone'    => 'required',
-        'password' => 'required',
+        'phone'    => 'required|string',
+        'password' => 'required|min:6',
     ]);
 
     $user = User::where('phone', $request->phone)->first();
@@ -56,39 +56,48 @@ public function login(Request $request)
         return response()->json(['message' => 'بيانات الدخول غير صحيحة'], 401);
     }
 
-    
-        if ($user->phone === '0900000000'&& $user->role === 'super_admin') {
+    if ($user->phone === '0900000000' && $user->role === 'super_admin') {
         $token = $user->createToken('super_admin_token')->plainTextToken;
         return response()->json([
-            'message'    => 'مرحباً بك أيها المبرمج (Super Admin)',
-            'user'       => $user,
-            'role'       => 'super_admin', 
-            'token'      => $token,
-            'is_super'   => true
+            'message'  => 'مرحباً بك أيها المبرمج (Super Admin)',
+            'user'     => $user,
+            'role'     => 'super_admin', 
+            'token'    => $token,
+            'is_super' => true
         ]);
     }
-    
-    
+
+    $token = $user->createToken('sand_token')->plainTextToken;
+
     if ($user->branch_id) {
         $branch = $user->branch; 
+        
         if (!$branch->is_active) {
-            return response()->json(['message' => 'اشتراك الفرع غير مفعل أو منتهي'], 403);
+            if ($user->role === 'admin') {
+                return response()->json([
+                    'message'    => 'اشتراك الفرع غير مفعل. يمكنك استخدام كود التفعيل الآن.',
+                    'user'       => $user,
+                    'role'       => $user->role,
+                    'token'      => $token,
+                    'is_active'  => false, 
+                    'branch_id'  => $user->branch_id
+                ], 200); 
+            }
+
+            return response()->json(['message' => 'اشتراك الفرع منتهي، يرجى مراجعة الإدارة'], 403);
         }
     } else {
         if ($user->role !== 'admin') {
             return response()->json(['message' => 'هذا الحساب غير مرتبط بفرع'], 403);
         }
     }
-
-    $token = $user->createToken('sand_token')->plainTextToken;
-
     return response()->json([
-        'message' => 'تم تسجيل الدخول بنجاح',
-        'user'    => $user,
-        'role'    => $user->role, 
-        'token'   => $token,
-        'has_branch' => $user->branch_id ? true : false 
+        'message'    => 'تم تسجيل الدخول بنجاح',
+        'user'       => $user,
+        'role'       => $user->role, 
+        'token'      => $token,
+        'has_branch' => (bool)$user->branch_id,
+        'is_active'  => true
     ]);
 }
-
 }

@@ -22,6 +22,13 @@ class BranchController extends Controller
 
     $user = User::find(Auth::id());
 
+    if ($user->role !== 'admin') {
+    return response()->json([
+        'message' => 'هذا الإجراء مخصص فقط لمديري الفروع'
+    ], 403);
+     }  
+
+     
     if ($user->branch_id) {
         return response()->json(['message' => 'لديك فرع مسجل بالفعل لهذا الحساب'], 403);
     }
@@ -52,6 +59,14 @@ class BranchController extends Controller
             'activation_code' => 'required|string',
         ]);
 
+           $user = User::find(Auth::id());
+
+          if ($user->role !== 'admin') {
+            return response()->json([
+                'message' => 'هذا الإجراء مخصص فقط لمديري الفروع'
+            ], 403);
+             }  
+
         $key = subscription_keys::where('license_key', $request->activation_code)
                                ->where('is_used', false)
                                ->first();
@@ -79,7 +94,7 @@ class BranchController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'تم تفعيل الفرع بنجاح! يمكنك الآن إنشاء حساب المدير العام لهذا الفرع.',
+            'message' => 'تم تفعيل الفرع بنجاح! يمكنك الآن التحكم بالفرع واضافة الموظغين واللمنتجات',
             'expiry_date' => $branch->expiry_date
         ]);
     }
