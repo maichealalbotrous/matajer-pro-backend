@@ -37,7 +37,7 @@ class BranchController extends Controller
         'name' => $request->name,
         'location' => $request->location,
         'subscription_code' => null, 
-        'expiry_date' => now(),      
+'expiry_date' => now()->format('Y/m/d'),
         'is_active' => false,        
     ]);
 
