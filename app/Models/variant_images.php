@@ -11,7 +11,7 @@ class variant_images extends Model
         'image_path',
     ];
 
-    protected function productVariant()
+    public function productVariant()
     {
         return $this->belongsTo(product_variant::class, 'variant_id');
     }

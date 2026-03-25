@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class product extends Model
 {
@@ -13,13 +14,28 @@ class product extends Model
         'branch_id',
     ];
 
-    protected function branche()
+    protected static function booted()
+{
+    static::deleting(function ($product) {
+        if ($product->image) {
+            Storage::disk('public')->delete($product->image);
+        }
+
+        foreach ($product->variants as $variant) {
+            $variant->delete(); 
+        }
+    });
+}
+
+    public function branche()
     {
         return $this->belongsTo(branche::class, 'branch_id');
     }
 
-    protected function variants()
+    public function variants()
     {
         return $this->hasMany(product_variant::class, 'product_id');
     }
+
+    
 }

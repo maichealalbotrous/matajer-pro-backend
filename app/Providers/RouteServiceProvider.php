@@ -36,6 +36,7 @@ class RouteServiceProvider extends ServiceProvider
      $this->mapApiEmployeeRoutes();
      $this->mapApiAdminSupKeyRoutes();
      $this->mapApiAdminBranchRoutes();   
+     $this->mapApiProductVariantRoutes();
     }
 
     
@@ -86,5 +87,12 @@ class RouteServiceProvider extends ServiceProvider
         Route::prefix('api')
              ->middleware('api')
              ->group(base_path('routes/SuperAdminDashboard/SuperAdminBranch_api.php'));
+    }
+
+    protected function mapApiProductVariantRoutes()
+    {
+        Route::prefix('api')
+             ->middleware('api')
+             ->group(base_path('routes/public/Product_Variants_api.php'));
     }
 }
