@@ -39,4 +39,9 @@ class product_variant extends Model
     {
         return $this->hasMany(variant_images::class, 'variant_id');
     }
+
+    public function invoiceItems()
+    {
+        return $this->hasMany(invoice_item::class, 'variant_id');
+    }
 }

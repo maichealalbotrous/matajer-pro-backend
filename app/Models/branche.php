@@ -33,4 +33,14 @@ class branche extends Model
     {
         return $this->hasMany(inventory::class, 'branch_id');
     }
+
+    public function invoices()
+    {
+        return $this->hasMany(invoice::class, 'branch_id');
+    }
+
+    public function settlements()
+    {
+        return $this->hasMany(settlement::class, 'branch_id');
+    }
 }

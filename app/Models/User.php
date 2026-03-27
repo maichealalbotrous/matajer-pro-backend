@@ -55,4 +55,14 @@ class User extends Authenticatable
     {
         return $this->belongsTo(branche::class, 'branch_id');
     }
+
+    public function invoices()
+    {
+        return $this->hasMany(invoice::class, 'user_id');
+    }
+
+    public function settlements()
+    {
+        return $this->hasMany(settlement::class, 'approved_by');
+    }
 }

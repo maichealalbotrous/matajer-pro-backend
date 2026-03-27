@@ -37,6 +37,8 @@ class RouteServiceProvider extends ServiceProvider
      $this->mapApiAdminSupKeyRoutes();
      $this->mapApiAdminBranchRoutes();   
      $this->mapApiProductVariantRoutes();
+     $this->mapApiapprovedInvoiceRoutes();
+     $this->mapApiInvoiceRoutes();
     }
 
     
@@ -95,4 +97,18 @@ class RouteServiceProvider extends ServiceProvider
              ->middleware('api')
              ->group(base_path('routes/public/Product_Variants_api.php'));
     }
+
+    protected function mapApiapprovedInvoiceRoutes()
+    {
+        Route::prefix('api')
+             ->middleware('api')
+             ->group(base_path('routes/public/ApprovedInvoice_api.php'));
+    }
+
+    protected function mapApiInvoiceRoutes(){
+        Route::prefix('api')
+             ->middleware('api')
+             ->group(base_path('routes/public/Invoices_api.php'));
+    }
+
 }
