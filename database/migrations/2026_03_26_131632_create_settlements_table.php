@@ -13,11 +13,20 @@ return new class extends Migration
     {
         Schema::create('settlements', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('branch_id')->constrained('branches');
-            $table->foreignId('invoice_id')->unique()->constrained('invoices');
+            $table->foreignId('branch_id')
+            ->constrained('branches')
+            ->cascadeOnDelete()
+            ->cascadeOnUpdate();;
+            $table->foreignId('invoice_id')->unique()
+            ->constrained('invoices')
+            ->cascadeOnDelete()
+            ->cascadeOnUpdate();
             $table->decimal('gross_profit', 15, 2);
             $table->decimal('net_profit', 15, 2);   
-            $table->foreignId('approved_by')->constrained('users'); 
+            $table->foreignId('approved_by')
+            ->constrained('users')
+            ->cascadeOnDelete()
+            ->cascadeOnUpdate();; 
             $table->timestamp('settlement_date');
             $table->timestamps();
         });

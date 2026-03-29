@@ -39,6 +39,7 @@ class RouteServiceProvider extends ServiceProvider
      $this->mapApiProductVariantRoutes();
      $this->mapApiapprovedInvoiceRoutes();
      $this->mapApiInvoiceRoutes();
+     $this->mapApiSettlementRoutes();
     }
 
     
@@ -111,4 +112,11 @@ class RouteServiceProvider extends ServiceProvider
              ->group(base_path('routes/public/Invoices_api.php'));
     }
 
+
+    protected function mapApiSettlementRoutes()
+    {
+        Route::prefix('api')
+             ->middleware('api')
+             ->group(base_path('routes/public/Settlement_api.php'));
+    }
 }

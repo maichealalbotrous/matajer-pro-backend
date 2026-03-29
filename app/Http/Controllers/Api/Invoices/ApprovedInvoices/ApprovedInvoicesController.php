@@ -83,7 +83,7 @@ class ApprovedInvoicesController extends Controller
                 'gross_profit'    => $grossProfit,
                 'net_profit'      => $netProfit,
                 'approved_by'     => $admin->id,
-                'settlement_date' => Carbon::parse(now())->format('Y/m/d'),
+                'settlement_date' => now(),
             ]);
 
             $invoice->update(['status' => 'approved']);
