@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Discount extends Model
+{
+    protected $fillable = [
+        'branch_id',
+        'category_id',  
+        'discount_type',
+        'discount_value',
+        'start_date',
+        'end_date',
+        'is_active',
+    ];
+
+    public function branch()
+    {
+        return $this->belongsTo(branche::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(product::class);
+    }
+}

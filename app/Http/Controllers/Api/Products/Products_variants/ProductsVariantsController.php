@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Products\Products_variants;
 
+use App\Http\Controllers\Api\Discounts\DiscountsController;
 use App\Http\Controllers\Controller;
 use App\Models\inventory;
 use App\Models\product;
@@ -37,7 +38,7 @@ public function index()
         return $item->product_id . '-' . $item->color;
     });
 
-    $result = $grouped->map(function ($group) {
+    $result = $grouped->map(function ($group) use ($admin) {
         $first = $group->first(); 
 
         return [
@@ -47,7 +48,8 @@ public function index()
             'sku'          => $first->sku, 
             'color'        => $first->color,
             'cost_price'   => $first->cost_price,
-            'size'         => $group->map(function ($v) {
+            'selling_price' => DiscountsController::applyDiscount($first->id, $admin->branch_id),       
+                 'size'         => $group->map(function ($v) {
                 return [
                     'id'       =>$v->id,
                     'size'     => $v->size,
@@ -76,6 +78,7 @@ public function addVariants(Request $request)
         'colors_groups.*.color'            => 'nullable|string',
         'colors_groups.*.variant_name'     => 'nullable|string', 
         'colors_groups.*.cost_price'       => 'required|numeric',
+        'colors_groups.*.selling_price' => 'required|numeric|min:0', 
         'colors_groups.*.sku'              => 'required|string', 
         'colors_groups.*.images'           => 'nullable|array',
         'colors_groups.*.images.*'         => 'image|mimes:jpeg,png,jpg|max:2048',
@@ -107,6 +110,7 @@ public function addVariants(Request $request)
                         'color'        => $colorData['color'] ?? null,
                         'size'         => $sizeData['size'] ?? null,
                         'cost_price'   => $colorData['cost_price'],
+                        'selling_price'=> $colorData['selling_price'], 
                     ]);
 
                     if ($request->hasFile("colors_groups.$colorIndex.images")) {
@@ -143,6 +147,7 @@ public function addVariants(Request $request)
             'colors_groups.*.color'            => 'nullable|string',
             'colors_groups.*.variant_name'     => 'nullable|string', 
             'colors_groups.*.cost_price'       => 'required|numeric',
+            'colors_groups.*.selling_price' => 'required|numeric|min:0', 
             'colors_groups.*.sku'              => 'required|string', 
             'colors_groups.*.images'           => 'nullable|array',
             'colors_groups.*.images.*'         => 'image|mimes:jpeg,png,jpg|max:2048',
@@ -178,6 +183,7 @@ public function addVariants(Request $request)
                         'color'        => $colorData['color'] ?? $variant->color,    
                         'size'         => $sizeData['size'] ?? $variant->size, 
                         'cost_price'   => $colorData['cost_price'] ?? $variant->cost_price,
+                        'selling_price'=> $colorData['selling_price'] ?? $variant->selling_price, 
                     ]);
 
                   if (array_key_exists('quantity', $sizeData)) {

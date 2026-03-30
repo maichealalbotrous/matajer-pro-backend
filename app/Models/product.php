@@ -37,5 +37,9 @@ class product extends Model
         return $this->hasMany(product_variant::class, 'product_id');
     }
 
+    public function discounts()
+    {
+        return $this->hasMany(Discount::class, 'product_id');
+    }
     
 }

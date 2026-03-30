@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Invoices\Invoices;
 
+use App\Http\Controllers\Api\Discounts\DiscountsController;
 use App\Http\Controllers\Controller;
 use App\Models\inventory;
 use App\Models\invoice;
@@ -49,6 +50,7 @@ class InvoicesController extends Controller
             ]);
 
             foreach ($request->items as $item) {
+            
                 $inventory = inventory::where('variant_id', $item['variant_id'])
                     ->where('branch_id', $admin->branch_id)
                     ->first();
