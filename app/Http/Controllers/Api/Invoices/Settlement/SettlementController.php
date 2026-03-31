@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api\Invoices\Settlement;
 
 use App\Http\Controllers\Controller;
+use App\Models\expense;
 use App\Models\inventory;
+use App\Models\invoice_item;
 use App\Models\settlement;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class SettlementController extends Controller
 {
@@ -31,6 +34,7 @@ public function index(Request $request)
         'to_date'   => 'nullable|date|after_or_equal:from_date',
     ]);
 
+    // 1. جلب التسويات (Settlements)
     $query = settlement::with([
             'invoice:id,total_amount,type,status', 
             'approver:id,name', 
@@ -38,18 +42,30 @@ public function index(Request $request)
         ])
         ->where('branch_id', $admin->branch_id);
 
+    // 2. جلب المصاريف (Expenses) بنفس الفرع
+    $expensesQuery = expense::where('branch_id', $admin->branch_id);
+
+    // تطبيق الفلتر الزمني على الطرفين
     if ($request->filled(['from_date', 'to_date'])) {
         $query->whereBetween('settlement_date', [$request->from_date, $request->to_date]);
+        // ملاحظة: المصاريف نستخدم created_at أو تاريخ المصروف المعتمد لديك
+        $expensesQuery->whereBetween('created_at', [$request->from_date, $request->to_date]);
     }
 
     $settlements = $query->latest('settlement_date')->get();
+    $totalExpenses = $expensesQuery->sum('amount');
+
+    // الحسابات المالية
+    $totalGrossProfit = $settlements->sum('gross_profit'); // الربح من المبيعات فقط
+    $realNetProfit = $totalGrossProfit - $totalExpenses;   // الصافي بعد خصم المصاريف
 
     $statistics = [
-        'total_gross_revenue' => round($settlements->sum('gross_profit'), 2),
-        'total_net_profit'    => round($settlements->sum('net_profit'), 2),
+        'total_gross_revenue' => round($totalGrossProfit, 2),
+        'total_expenses'      => round($totalExpenses, 2),     // سطر مضاف
+        'total_net_profit'    => round($realNetProfit, 2),      // الربح الحقيقي
         'settlements_count'   => $settlements->count(),
-        'average_profit'      => $settlements->count() > 0 
-                                 ? round($settlements->avg('net_profit'), 2) 
+        'average_net_profit'  => $settlements->count() > 0 
+                                 ? round($realNetProfit / $settlements->count(), 2) 
                                  : 0
     ];
 
@@ -64,97 +80,112 @@ public function index(Request $request)
     ], 200);
 }
 
-
  ////////////////////////////////////////////////////////////////////////////////////////////
     /////{reports Settlements}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-     
-    public function reports(Request $request)
-    {
-
+     public function reports(Request $request)
+{
     $request->validate([
         'period' => 'required|in:today,weekly,monthly,yearly',
     ]);
-        $admin = User::find(Auth::id());
 
-        $query = settlement::where('branch_id', $admin->branch_id);
+    $admin = User::find(Auth::id());
 
-        if($admin->role !== 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'غير مصرح لك بالدخول إلى البيانات المالية'
-            ], 403);
-        }
-        
-        switch ($request->period) {
-            case 'today':
-                $query->whereDate('settlement_date', Carbon::today());
-                break;
-            case 'weekly':
-                $query->whereBetween('settlement_date', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
-                break;
-            case 'monthly':
-                $query->whereMonth('settlement_date', Carbon::now()->month)
-                      ->whereYear('settlement_date', Carbon::now()->year);
-                break;
-            case 'yearly':
-                $query->whereYear('settlement_date', Carbon::now()->year);
-                break;
-        }
-
-        $settlements = $query->get();
-
+    if ($admin->role !== 'admin') {
         return response()->json([
-            'success' => true,
-            'period'  => $request->period,
-            'summary' => [
-                'total_invoices' => $settlements->count(),
-                'gross_revenue'  => round($settlements->sum('gross_profit'), 2),
-                'net_profit'     => round($settlements->sum('net_profit'), 2),
-                'average_sale'   => $settlements->count() > 0 ? round($settlements->avg('gross_profit'), 2) : 0,
-            ]
-        ]);
+            'success' => false,
+            'message' => 'غير مصرح لك بالدخول إلى البيانات المالية'
+        ], 403);
     }
 
+    // تجهيز الاستعلامات للفرع المحدد
+    $settlementQuery = settlement::where('branch_id', $admin->branch_id);
+    $expenseQuery = expense::where('branch_id', $admin->branch_id);
+
+    // تطبيق فلتر الفترة الزمنية على المبيعات والمصاريف معاً
+    switch ($request->period) {
+        case 'today':
+            $settlementQuery->whereDate('settlement_date', Carbon::today());
+            $expenseQuery->whereDate('created_at', Carbon::today());
+            break;
+        case 'weekly':
+            $start = Carbon::now()->startOfWeek();
+            $end = Carbon::now()->endOfWeek();
+            $settlementQuery->whereBetween('settlement_date', [$start, $end]);
+            $expenseQuery->whereBetween('created_at', [$start, $end]);
+            break;
+        case 'monthly':
+            $settlementQuery->whereMonth('settlement_date', Carbon::now()->month)
+                            ->whereYear('settlement_date', Carbon::now()->year);
+            $expenseQuery->whereMonth('created_at', Carbon::now()->month)
+                         ->whereYear('created_at', Carbon::now()->year);
+            break;
+        case 'yearly':
+            $settlementQuery->whereYear('settlement_date', Carbon::now()->year);
+            $expenseQuery->whereYear('created_at', Carbon::now()->year);
+            break;
+    }
+
+    $settlements = $settlementQuery->get();
+    $totalExpenses = $expenseQuery->sum('amount');
+    
+    $totalGrossProfit = $settlements->sum('gross_profit'); // أرباح المبيعات فقط
+    $actualNetProfit = $totalGrossProfit - $totalExpenses; // الربح الحقيقي الصافي
+
+    return response()->json([
+        'success' => true,
+        'period'  => $request->period,
+        'summary' => [
+            'total_invoices'   => $settlements->count(),
+            'gross_revenue'    => round($totalGrossProfit, 2),
+            'total_expenses'   => round($totalExpenses, 2),
+            'final_net_profit' => round($actualNetProfit, 2),
+            'profit_margin'    => $totalGrossProfit > 0 
+                                  ? round(($actualNetProfit / $totalGrossProfit) * 100, 2) . '%' 
+                                  : '0%',
+            'average_sale'     => $settlements->count() > 0 
+                                  ? round($settlements->avg('gross_profit'), 2) 
+                                  : 0,
+        ]
+    ]);
+}
 
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     /////{inventoryAudit Settlements}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-    public function inventoryAudit()
-    {
-        $admin = User::find(Auth::id());
+   public function inventoryAudit()
+{
+    $admin = User::find(Auth::id());
 
-
-           if($admin->role !== 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'غير مصرح لك بالدخول إلى البيانات المالية'
-            ], 403);
-        }
-        
-        $inventory = inventory::with('variant.product')
-            ->where('branch_id', $admin->branch_id)
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'variant_id'   => $item->variant_id,
-                    'product_name' => $item->variant->product->name,
-                    'variant_name' => $item->variant->name,
-                    'current_stock' => $item->quantity, 
-                    'cost_price'   => $item->variant->cost_price,
-                    'total_value'  => $item->quantity * $item->variant->cost_price 
-                ];
-            });
-
-        return response()->json([
-            'success' => true,
-            'branch_id' => $admin->branch_id,
-            'total_inventory_value' => round($inventory->sum('total_value'), 2),
-            'items' => $inventory
-        ]);
+    if($admin->role !== 'admin') {
+        return response()->json(['success' => false, 'message' => 'غير مصرح لك'], 403);
     }
+    
+    $inventory = inventory::with('variant.product')
+        ->where('branch_id', $admin->branch_id)
+        ->get()
+        ->map(function ($item) {
+            return [
+                'variant_id'   => $item->variant_id,
+                'product_name' => $item->variant->product->model_name, 
+                'variant_name' => $item->variant->variant_name, 
+                'current_stock'=> $item->quantity, 
+                'cost_price'   => $item->variant->cost_price,
+                'selling_price'=> $item->variant->selling_price, 
+                'total_cost_value' => round($item->quantity * $item->variant->cost_price, 2),
+                'total_market_value'=> round($item->quantity * $item->variant->selling_price, 2)
+            ];
+        });
+
+    return response()->json([
+        'success' => true,
+        'total_inventory_cost'   => round($inventory->sum('total_cost_value'), 2),
+        'total_inventory_market' => round($inventory->sum('total_market_value'), 2),
+        'items' => $inventory
+    ]);
+}
 
         ////////////////////////////////////////////////////////////////////////////////////////////
     /////{show Settlements}///////////////////////////////////////////////////////////////////////////////
@@ -217,30 +248,27 @@ public function index(Request $request)
     /////{topProfitable Settlements}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    public function topProfitable()
+public function topProfitable()
 {
     $admin = User::find(Auth::id());
 
-           if($admin->role !== 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'غير مصرح لك بالدخول إلى البيانات المالية']);}
+    if($admin->role !== ' admin')
+        {
+            return response()->json(['success' => false, 'message' => 'غير مصرح لك'], 403);
+        }
 
-      $topProducts = Settlement::with('invoice.invoiceItems.variant')
-        ->where('branch_id', $admin->branch_id)
-        ->get()
-        ->flatMap(fn($s) => $s->invoice->invoiceItems)
+    $topProducts = invoice_item::query()
+        ->select('variant_id', DB::raw('SUM((sold_at_price - cost_price) * quantity) as total_profit')) 
+        ->join('invoices', 'invoice_items.invoice_id', '=', 'invoices.id')
+        ->where('invoices.branch_id', $admin->branch_id)
         ->groupBy('variant_id')
-        ->map(function ($items) {
-            return [
-                'name' => $items->first()->variant->name,
-                'total_profit' => $items->sum(fn($i) => ($i->sold_at_price - $i->variant->cost_price) * $i->quantity)
-            ];
-        })->sortByDesc('total_profit')->take(5);
+        ->with('variant:id,variant_name')
+        ->orderByDesc('total_profit')
+        ->take(5)
+        ->get();
 
-    return response()->json($topProducts->values());
+    return response()->json($topProducts);
 }
-
 
         ////////////////////////////////////////////////////////////////////////////////////////////
     /////{lowStockAlerts Settlements}///////////////////////////////////////////////////////////////////////////////
