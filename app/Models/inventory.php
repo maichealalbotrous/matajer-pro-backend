@@ -10,14 +10,15 @@ class inventory extends Model
         'branch_id',
         'variant_id',
         'quantity',
+        
     ];
 
-    protected function branche()
+    public function branch()
     {
         return $this->belongsTo(branche::class, 'branch_id');
     }
 
-    protected function productVariant()
+    public function variant()
     {
         return $this->belongsTo(product_variant::class, 'variant_id');
     }

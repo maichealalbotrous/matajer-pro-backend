@@ -59,7 +59,7 @@ class BranchController extends Controller
             'activation_code' => 'required|string',
         ]);
 
-           $user = User::find(Auth::id());
+           $user = Auth::user();
 
           if ($user->role !== 'admin') {
             return response()->json([

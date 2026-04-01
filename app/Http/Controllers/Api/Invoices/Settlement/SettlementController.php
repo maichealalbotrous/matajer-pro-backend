@@ -20,7 +20,7 @@ class SettlementController extends Controller
     ////////////////////////////////////////////////////////////////////////////////////////////
 public function index(Request $request)
 {
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
 
     if ($admin->role !== 'admin') {
         return response()->json([
@@ -47,9 +47,12 @@ public function index(Request $request)
 
     // تطبيق الفلتر الزمني على الطرفين
     if ($request->filled(['from_date', 'to_date'])) {
-        $query->whereBetween('settlement_date', [$request->from_date, $request->to_date]);
+
+       $fromDate = Carbon::parse($request->from_date)->startOfDay();
+       $toDate   = Carbon::parse($request->to_date)->endOfDay();
+        $query->whereBetween('settlement_date', [$fromDate, $toDate]);
         // ملاحظة: المصاريف نستخدم created_at أو تاريخ المصروف المعتمد لديك
-        $expensesQuery->whereBetween('created_at', [$request->from_date, $request->to_date]);
+        $expensesQuery->whereBetween('created_at', [$fromDate, $toDate]);
     }
 
     $settlements = $query->latest('settlement_date')->get();
@@ -57,13 +60,13 @@ public function index(Request $request)
 
     // الحسابات المالية
     $totalGrossProfit = $settlements->sum('gross_profit'); // الربح من المبيعات فقط
-    $realNetProfit = $totalGrossProfit - $totalExpenses;   // الصافي بعد خصم المصاريف
+    $realNetProfit = $settlements->sum('net_profit') - $totalExpenses;   // الصافي بعد خصم المصاريف
 
     $statistics = [
+        'settlements_count'   => $settlements->count(),
         'total_gross_revenue' => round($totalGrossProfit, 2),
         'total_expenses'      => round($totalExpenses, 2),     // سطر مضاف
         'total_net_profit'    => round($realNetProfit, 2),      // الربح الحقيقي
-        'settlements_count'   => $settlements->count(),
         'average_net_profit'  => $settlements->count() > 0 
                                  ? round($realNetProfit / $settlements->count(), 2) 
                                  : 0
@@ -90,7 +93,7 @@ public function index(Request $request)
         'period' => 'required|in:today,weekly,monthly,yearly',
     ]);
 
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
 
     if ($admin->role !== 'admin') {
         return response()->json([
@@ -132,12 +135,13 @@ public function index(Request $request)
     
     $totalGrossProfit = $settlements->sum('gross_profit'); // أرباح المبيعات فقط
     $actualNetProfit = $totalGrossProfit - $totalExpenses; // الربح الحقيقي الصافي
-
+    $netProfit = $settlements->sum('net_profit') - $totalExpenses; // الربح الصافي المسجل في التسويات
     return response()->json([
         'success' => true,
         'period'  => $request->period,
         'summary' => [
             'total_invoices'   => $settlements->count(),
+            'net_profit'       => round($netProfit, 2), 
             'gross_revenue'    => round($totalGrossProfit, 2),
             'total_expenses'   => round($totalExpenses, 2),
             'final_net_profit' => round($actualNetProfit, 2),
@@ -155,35 +159,71 @@ public function index(Request $request)
     ////////////////////////////////////////////////////////////////////////////////////////////
     /////{inventoryAudit Settlements}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-   public function inventoryAudit()
+  public function inventoryAudit()
 {
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
 
-    if($admin->role !== 'admin') {
+    if ($admin->role !== 'admin') {
         return response()->json(['success' => false, 'message' => 'غير مصرح لك'], 403);
     }
     
-    $inventory = inventory::with('variant.product')
+    $inventoryData = inventory::with(['variant.product:id,model_name'])
         ->where('branch_id', $admin->branch_id)
-        ->get()
-        ->map(function ($item) {
-            return [
-                'variant_id'   => $item->variant_id,
-                'product_name' => $item->variant->product->model_name, 
-                'variant_name' => $item->variant->variant_name, 
-                'current_stock'=> $item->quantity, 
-                'cost_price'   => $item->variant->cost_price,
-                'selling_price'=> $item->variant->selling_price, 
-                'total_cost_value' => round($item->quantity * $item->variant->cost_price, 2),
-                'total_market_value'=> round($item->quantity * $item->variant->selling_price, 2)
+        ->get();
+
+    $groupedItems = [];
+    $totalInventoryCost = 0;
+    $totalInventoryMarket = 0;
+
+    foreach ($inventoryData as $item) {
+        $variant = $item->variant;
+        if (!$variant) continue;
+
+        $key = $variant->product_id . '_' . $variant->color . '_' . $variant->variant_name;
+
+        $cost = (float) $variant->cost_price;
+        $selling = (float) $variant->selling_price;
+        $qty = (int) $item->quantity;
+
+        $totalItemCost = round($qty * $cost, 2);
+        $totalItemMarket = round($qty * $selling, 2);
+
+        if (!isset($groupedItems[$key])) {
+            $groupedItems[$key] = [
+                'product_name'       => $variant->product->model_name ?? 'N/A', 
+                'variant_name'       => $variant->variant_name, 
+                'color'              => $variant->color,
+                'cost_price'         => $cost,
+                'selling_price'      => $selling,
+                'total_group_qty'    => 0,
+                'total_group_cost'   => 0,
+                'total_group_market' => 0,
+                'sizes_details'      => [] 
             ];
-        });
+        }
+
+        $groupedItems[$key]['total_group_qty']    += $qty;
+        $groupedItems[$key]['total_group_cost']   += $totalItemCost;
+        $groupedItems[$key]['total_group_market'] += $totalItemMarket;
+        
+        $groupedItems[$key]['sizes_details'][] = [
+            'variant_id' => $variant->id,
+            'size'       => $variant->size,
+            'quantity'   => $qty
+        ];
+
+        $totalInventoryCost += $totalItemCost;
+        $totalInventoryMarket += $totalItemMarket;
+    }
 
     return response()->json([
         'success' => true,
-        'total_inventory_cost'   => round($inventory->sum('total_cost_value'), 2),
-        'total_inventory_market' => round($inventory->sum('total_market_value'), 2),
-        'items' => $inventory
+        'statistics' => [
+            'total_inventory_cost'   => round($totalInventoryCost, 2),
+            'total_inventory_market' => round($totalInventoryMarket, 2),
+            'potential_profit'       => round($totalInventoryMarket - $totalInventoryCost, 2),
+        ],
+        'items' => array_values($groupedItems) 
     ]);
 }
 
@@ -197,7 +237,7 @@ public function index(Request $request)
             'id'=>'required|exists:settlements,id'
         ]);
         
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
 
            if($admin->role !== 'admin') {
             return response()->json([
@@ -225,7 +265,7 @@ public function index(Request $request)
             'id'=>'required|exists:settlements,id'
         ]);
         
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
 
            if($admin->role !== 'admin') {
             return response()->json([
@@ -250,24 +290,63 @@ public function index(Request $request)
 
 public function topProfitable()
 {
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
 
-    if($admin->role !== ' admin')
-        {
-            return response()->json(['success' => false, 'message' => 'غير مصرح لك'], 403);
-        }
+    if ($admin->role !== 'admin') {
+        return response()->json(['success' => false, 'message' => 'غير مصرح لك'], 403);
+    }
 
-    $topProducts = invoice_item::query()
-        ->select('variant_id', DB::raw('SUM((sold_at_price - cost_price) * quantity) as total_profit')) 
+    $topItems = invoice_item::query()
+        ->select(
+            'invoice_items.variant_id', 
+            DB::raw('SUM((invoice_items.sold_at_price - product_variants.cost_price) * invoice_items.quantity) as total_profit'),
+            DB::raw('SUM(invoice_items.quantity) as total_qty_sold')
+        )
         ->join('invoices', 'invoice_items.invoice_id', '=', 'invoices.id')
+        ->join('product_variants', 'invoice_items.variant_id', '=', 'product_variants.id') 
         ->where('invoices.branch_id', $admin->branch_id)
-        ->groupBy('variant_id')
-        ->with('variant:id,variant_name')
-        ->orderByDesc('total_profit')
-        ->take(5)
+        ->with(['variant.product:id,model_name'])
+        ->groupBy('invoice_items.variant_id', 'product_variants.cost_price') 
         ->get();
 
-    return response()->json($topProducts);
+    $groupedResults = [];
+
+    foreach ($topItems as $item) {
+        $variant = $item->variant;
+        if (!$variant) continue;
+
+        $key = $variant->product_id . '_' . $variant->color . '_' . $variant->variant_name;
+
+        if (!isset($groupedResults[$key])) {
+            $groupedResults[$key] = [
+                'product_name' => $variant->product->model_name ?? 'N/A',
+                'variant_name' => $variant->variant_name,
+                'color'        => $variant->color,
+                'total_profit' => 0,
+                'total_sold'   => 0,
+                'sizes_performance' => []
+            ];
+        }
+
+        $groupedResults[$key]['total_profit'] += (float) $item->total_profit;
+        $groupedResults[$key]['total_sold']   += (int) $item->total_qty_sold;
+        
+        $groupedResults[$key]['sizes_performance'][] = [
+            'size'   => $variant->size,
+            'profit' => round($item->total_profit, 2),
+            'qty'    => $item->total_qty_sold
+        ];
+    }
+
+    $finalResult = collect($groupedResults)
+        ->sortByDesc('total_profit')
+        ->take(5)
+        ->values();
+
+    return response()->json([
+        'success' => true,
+        'data'    => $finalResult
+    ]);
 }
 
         ////////////////////////////////////////////////////////////////////////////////////////////
@@ -277,21 +356,36 @@ public function topProfitable()
 
 public function lowStockAlerts()
 {
+    $admin = Auth::user();
 
-    $admin = User::find(Auth::id());
+    if($admin->role !== 'admin') {
+        return response()->json([
+            'success' => false, 
+            'message' => 'غير مصرح لك بالدخول إلى البيانات المالية'
+        ], 403);
+    }
 
-           if($admin->role !== 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'غير مصرح لك بالدخول إلى البيانات المالية']);}
-
-                
-    $lowStock = Inventory::with('variant')
-        ->where('branch_id',$admin->branch_id)
-        ->whereColumn('quantity', '<=', 1)
+    $lowStock = inventory::with(['variant.product:id,model_name'])
+        ->where('branch_id', $admin->branch_id)
+        ->where('quantity', '<=', 2)
         ->get();
 
-    return response()->json($lowStock);
+    $result = $lowStock->map(function($item) {
+        return [
+            'product_name' => $item->variant->product->model_name ?? 'N/A',
+            'variant_name' => $item->variant->variant_name,
+            'color'        => $item->variant->color,
+            'size'         => $item->variant->size,
+            'quantity'     => $item->quantity,
+            'status'       => $item->quantity == 0 ? 'نفذت الكمية' : 'كمية منخفضة'
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'count'   => $result->count(),
+        'items'   => $result
+    ]);
 }
     
 }

@@ -12,6 +12,7 @@ class product_variant extends Model
         'size',
         'cost_price',
         'variant_name',
+        'selling_price',
         'sku',
         'color',
     ];

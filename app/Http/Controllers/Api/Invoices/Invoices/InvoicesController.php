@@ -31,7 +31,7 @@ class InvoicesController extends Controller
         'items.*.item_notes'    => 'string|nullable',
     ]);
 
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
 
     try {
         return DB::transaction(function () use ($admin, $request) {
@@ -94,7 +94,7 @@ public function returnInvoice(Request $request)
     ]);
 
     return DB::transaction(function () use ($request) {
-        $admin = User::find(Auth::id());   ;
+        $admin = Auth::user();   ;
         $originalInvoice = Invoice::findOrFail($request->original_invoice_id);
 
         $returnInvoice = Invoice::create([
@@ -147,7 +147,7 @@ public function exchangeInvoice(Request $request)
     ]);
 
     return DB::transaction(function () use ($request) {
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
         $originalInvoice = Invoice::findOrFail($request->original_invoice_id);
 
         $totalReturnedValue = 0;

@@ -19,8 +19,8 @@ return new class extends Migration
     ->cascadeOnUpdate();
     $table->string('size')->nullable();
     $table->string('color')->nullable();
-    $table->decimal('cost_price', 10, 2);
-    $table->decimal('selling_price', 10, 2); 
+    $table->decimal('cost_price', 10, 2)->nullable()->default(0.00);
+    $table->decimal('selling_price', 10, 2)->nullable()->default(0.00); 
     $table->string('variant_name')->nullable(); 
     $table->string('sku')->unique()->nullable();
     $table->string('images')->nullable();

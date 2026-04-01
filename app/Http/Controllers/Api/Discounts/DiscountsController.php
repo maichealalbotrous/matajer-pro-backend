@@ -19,7 +19,7 @@ class DiscountsController extends Controller
 
     public function index()
     {
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
 
         if($admin->role != 'admin')
             {
@@ -44,7 +44,7 @@ class DiscountsController extends Controller
 
     public function store(Request $request)
     {
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
 
         if($admin->role != 'admin')
             {
@@ -97,7 +97,7 @@ class DiscountsController extends Controller
          $request->validate([
             'id'=>'required|exists:discounts,id'
         ]);
-       $admin = User::find(Auth::id());
+       $admin = Auth::user();
 
         if($admin->role != 'admin')
             {
@@ -134,7 +134,7 @@ class DiscountsController extends Controller
             'id'=>'required|exists:discounts,id'
         ]);
         
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
 
         if($admin->role != 'admin')
             {
@@ -158,7 +158,7 @@ class DiscountsController extends Controller
 
     public static function applyDiscount($variantId, $branchId)
     {
-         $admin = User::find(Auth::id());
+         $admin = Auth::user();
 
         if($admin->role != 'admin')
             {

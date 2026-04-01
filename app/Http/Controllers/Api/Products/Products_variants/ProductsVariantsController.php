@@ -24,45 +24,55 @@ class ProductsVariantsController extends Controller
     
 public function index()
 {
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
 
-    if ($admin->role != 'admin') {
-        return response()->json(['error' => 'غير مسموح لك'], 403);
-    }
-
-    $variants = product_variant::with(['variantImages', 'inventories', 'product:id,model_name'])
+    // 1. جلب البيانات في استعلام واحد فقط (Eager Loading)
+    $variants = product_variant::with(['product:id,model_name', 'variantImages', 'inventories'])
         ->whereRelation('product', 'branch_id', $admin->branch_id)
         ->get();
 
-    $grouped = $variants->groupBy(function ($item) {
-        return $item->product_id . '-' . $item->color;
-    });
+    $result = [];
 
-    $result = $grouped->map(function ($group) use ($admin) {
-        $first = $group->first(); 
+    // 2. استخدام foreach واحدة لبناء المصفوفة يدوياً (أسرع من Map بمراتب)
+    foreach ($variants as $v) {
+        // مفتاح فريد للتجميع بناءً على (المنتج + اللون + الاسم)
+        $key = $v->product_id . '_' . $v->color . '_' . $v->variant_name;
 
-        return [
-            'id'           => $first->id,
-            'product'      => $first->product->model_name ?? 'N/A',
-            'variant_name' => $first->variant_name,
-            'sku'          => $first->sku, 
-            'color'        => $first->color,
-            'cost_price'   => $first->cost_price,
-            'selling_price' => DiscountsController::applyDiscount($first->id, $admin->branch_id),       
-                 'size'         => $group->map(function ($v) {
-                return [
-                    'id'       =>$v->id,
-                    'size'     => $v->size,
-                    'quantity' => $v->inventories->sum('quantity')
-                ];
-            })->values(),
-            'images'       => $first->variantImages->map(function ($img) {
-                return asset('storage/' . $img->image_path);
-            }),
+        if (!isset($result[$key])) {
+            $result[$key] = [
+                'id'            => $v->id,
+                'product'       => $v->product->model_name ?? 'N/A',
+                'variant_name'  => $v->variant_name,
+                'color'         => $v->color,
+                'cost_price'    => $v->cost_price,
+                'selling_price' => DiscountsController::applyDiscount($v->id, $admin->branch_id),
+                'sizes'         => [],
+                'images'        => []
+            ];
+
+            // إضافة الصور مرة واحدة فقط لكل مجموعة
+            foreach ($v->variantImages as $img) {
+                $result[$key]['images'][] = asset('storage/' . $img->image_path);
+            }
+        }
+
+        // إضافة المقاس والكمية للمجموعة الحالية مباشرة
+        $quantity = 0;
+        foreach ($v->inventories as $inv) {
+            if ($inv->branch_id == $admin->branch_id) {
+                $quantity += $inv->quantity;
+            }
+        }
+
+        $result[$key]['sizes'][] = [
+            'id'       => $v->id,
+            'size'     => $v->size,
+            'quantity' => $quantity
         ];
-    })->values(); 
+    }
 
-    return response()->json($result);
+    // إعادة المصفوفة بدون مفاتيح نصية (لتحويلها لـ JSON Array)
+    return response()->json(array_values($result));
 }
  
 
@@ -89,7 +99,7 @@ public function addVariants(Request $request)
     ]);
 
     $product = product::findOrFail($request->id);
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
 
     if ($admin->role != 'admin' || $product->branch_id != $admin->branch_id) {
         return response()->json(['error' => 'غير مصرح لك بالإدارة لهذا الفرع'], 403);
@@ -146,9 +156,9 @@ public function addVariants(Request $request)
             'colors_groups'                    => 'required|array|min:1',
             'colors_groups.*.color'            => 'nullable|string',
             'colors_groups.*.variant_name'     => 'nullable|string', 
-            'colors_groups.*.cost_price'       => 'required|numeric',
-            'colors_groups.*.selling_price' => 'required|numeric|min:0', 
-            'colors_groups.*.sku'              => 'required|string', 
+            'colors_groups.*.cost_price'       => 'nullable|numeric',
+            'colors_groups.*.selling_price' => 'nullable|numeric|min:0', 
+            'colors_groups.*.sku'              => 'nullable|string', 
             'colors_groups.*.images'           => 'nullable|array',
             'colors_groups.*.images.*'         => 'image|mimes:jpeg,png,jpg|max:2048',
             
@@ -160,7 +170,7 @@ public function addVariants(Request $request)
 
         $product = product::findOrFail($request->id);
         
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
 
         if ($admin->role != 'admin' || $product->branch_id != $admin->branch_id) {
             return response()->json(['error' => 'غير مصرح لك بالإدارة'], 403);
@@ -220,7 +230,7 @@ public function addVariants(Request $request)
         
         $variant = product_variant::with(['variantImages', 'product'])->findOrFail($request->id);
         
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
         
         if ($admin->role != 'admin' || $variant->product->branch_id != $admin->branch_id) {
             return response()->json(['error' => 'غير مسموح لك'], 403);
@@ -252,7 +262,7 @@ public function addVariants(Request $request)
 
     $branchId = $image->productVariant->product->branch_id;
     
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
     
     if ($admin->role != 'admin' || $branchId != $admin->branch_id) {
         return response()->json(['error' => 'غير مسموح لك بالقيام بهذه العملية'], 403);

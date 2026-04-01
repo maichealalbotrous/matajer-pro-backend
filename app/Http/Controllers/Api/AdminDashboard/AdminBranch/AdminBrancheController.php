@@ -17,7 +17,7 @@ class AdminBrancheController extends Controller
 /////////////////////////////////////////////////////////////////////////////////
 public function index()
 {
-    $user =User::find(Auth::id());
+    $user =Auth::user();
 
     if ($user->role != 'super_admin') {
         return response()->json(['message' => 'غير مصرح لك بالقيام بهذه العملية'], 403);
@@ -50,7 +50,7 @@ public function index()
         'id' => 'required'
     ]);
 
-    $user = User::find(Auth::id());
+    $user = Auth::user();
     
     if(!$user->role == 'super_admin') {
         return response()->json(['message' => 'غير مصرح لك بحذف الفروع'], 403);
@@ -74,7 +74,7 @@ public function index()
             'id' => 'required|exists:branches,id'
         ]);
 
-        if (User::find(Auth::id())->role !== 'super_admin') {
+        if (User::Auth()->role !== 'super_admin') {
             return response()->json(['message' => 'غير مصرح لك بالقيام بهذه العملية'], 403);
         }
 
@@ -125,7 +125,7 @@ public function index()
             'months' => 'required|integer|min:1'
         ]);
 
-        if (User::find(Auth::id())->role !== 'super_admin') {
+        if (User::Auth()->role !== 'super_admin') {
             return response()->json(['message' => 'صلاحية غير كافية'], 403);
         }
 
@@ -150,7 +150,7 @@ public function index()
 
     public function checkExpirations()
 {
-      if (User::find(Auth::id())->role !== 'super_admin') {
+      if (User::Auth()->role !== 'super_admin') {
             return response()->json(['message' => 'غير مصرح لك بالقيام بهذه العملية'], 403);
         }
         

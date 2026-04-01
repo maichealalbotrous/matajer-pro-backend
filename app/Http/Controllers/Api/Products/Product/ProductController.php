@@ -18,7 +18,7 @@ class ProductController extends Controller
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     public function index()
 {
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
 
     if ($admin->role != 'admin') {
         return response()->json(['error' => 'غير مسموح لك للقيام بهذه العملية'], 403);
@@ -76,7 +76,7 @@ class ProductController extends Controller
             'image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-       $admin = User::find(Auth::id());
+       $admin = Auth::user();
         if ( $admin->role != 'admin') {
             return response()->json(['error' => 'غير مسموح لك للقيام بهذه العملية'], 403);
         }
@@ -119,7 +119,7 @@ class ProductController extends Controller
 
         $product = product::findOrFail($request->id);
         
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
         
         if ( $admin->role != 'admin') {
             return response()->json(['error' => 'غير مسموح لك للقيام بهذه العملية'], 403);

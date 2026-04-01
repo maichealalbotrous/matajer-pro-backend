@@ -13,7 +13,7 @@ class ExpensesController extends Controller
 
    public function index()
     {
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
         if($admin->role !== 'admin') {
             return response()->json(['error' => 'غير مصرح لك يالقيام بهذه العملية'], 403);
         }
@@ -33,7 +33,7 @@ class ExpensesController extends Controller
             'notes'      => 'nullable|string',
         ]);
 
-          $admin = User::find(Auth::id());
+          $admin = Auth::user();
           
         if($admin->role !== 'admin') {
             return response()->json(['error' => 'غير مصرح لك يالقيام بهذه العملية'], 403);
@@ -64,7 +64,7 @@ class ExpensesController extends Controller
             'notes'  => 'nullable|string',
         ]);
 
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
         $expense = expense::findOrFail($request->id);
 
         if ($admin->role !== 'admin' || $expense->branch_id !== $admin->branch_id) {
@@ -90,7 +90,7 @@ class ExpensesController extends Controller
             'id' => 'required|exists:expenses,id',
         ]);
 
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
         
         
         ;

@@ -18,7 +18,7 @@ class ApprovedInvoicesController extends Controller
     ////////////////////////////////////////////////////////////////////////////////////////////
   public function index(Request $request)
 {
-    $admin = User::find(Auth::id());
+    $admin = Auth::user();
 
     if ($admin->role != 'admin') {
         return response()->json(['error' => 'لا تملك صلاحية عرض الفواتير'], 403);
@@ -53,7 +53,7 @@ class ApprovedInvoicesController extends Controller
             'invoiceId' => 'required|exists:invoices,id',
         ]);
 
-        $admin = User::find(Auth::id());
+        $admin = Auth::user();
 
         if ($admin->role != 'admin') {
             return response()->json(['error' => 'لا تملك صلاحية اعتماد الفواتير'], 403);
