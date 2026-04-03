@@ -7,13 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 class Discount extends Model
 {
     protected $fillable = [
-        'branch_id',
-        'category_id',  
+        'product_id',
         'discount_type',
         'discount_value',
         'start_date',
         'end_date',
         'is_active',
+        'branch_id',
     ];
 
     public function branch()

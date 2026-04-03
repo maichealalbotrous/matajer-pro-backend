@@ -17,27 +17,29 @@ class DiscountsController extends Controller
 /////{index function}/////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-    public function index()
+   public function index()
+{
+    $admin = Auth::user();
+
+    if($admin->role != 'admin')
     {
-        $admin = Auth::user();
-
-        if($admin->role != 'admin')
-            {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ليس لديك صلاحية الوصول إلى هذه البيانات'
-                ], 403);
-            }
-        $discounts = Discount::with(['product:id,name'])
-            ->where('branch_id', $admin->branch_id)
-            ->latest()
-            ->get();
-
         return response()->json([
-            'success' => true,
-            'data' => $discounts
-        ]);
+            'success' => false,
+            'message' => 'ليس لديك صلاحية الوصول إلى هذه البيانات'
+        ], 403);
     }
+
+    // تم تغيير name إلى model_name ليتوافق مع جدول المنتجات لديك
+    $discounts = Discount::with(['product:id,model_name']) 
+        ->where('branch_id', $admin->branch_id)
+        ->latest()
+        ->get();
+
+    return response()->json([
+        'success' => true,
+        'data' => $discounts
+    ]);
+}
 //////////////////////////////////////////////////////////////////////////////////////////////////
 /////{store function}/////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -156,39 +158,36 @@ class DiscountsController extends Controller
 /////{applyDiscount function}/////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-    public static function applyDiscount($variantId, $branchId)
-    {
-         $admin = Auth::user();
+   public static function applyDiscount($variantId, $branchId)
+{
+    // 1. جلب بيانات الـ Variant والسعر الأصلي
+    $variant = product_variant::find($variantId);
+    if (!$variant) return 0;
 
-        if($admin->role != 'admin')
-            {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ليس لديك صلاحية الوصول إلى هذه البيانات'
-                ], 403);
-            }
-            
-        $variant = product_variant::findOrFail($variantId);
-        $originalPrice = $variant->selling_price;
-        $now = Carbon::now()->toDateString();
+    $originalPrice = (float) $variant->selling_price;
+    $now = now()->toDateString();
 
-        $discount = Discount::where('product_id', $variant->product_id)
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
-            ->whereDate('start_date', '<=', $now)
-            ->whereDate('end_date', '>=', $now)
-            ->first();
+    // 2. البحث عن الخصم المرتبط بالمنتج (Product) وليس بالـ Variant
+    $discount = Discount::where('product_id', $variant->product_id)
+        ->where('branch_id', $branchId)
+        ->where('is_active', true)
+        ->whereDate('start_date', '<=', $now)
+        ->whereDate('end_date', '>=', $now)
+        ->first();
 
-        if (!$discount) {
-            return $originalPrice;
-        }
-
-        if ($discount->discount_type === 'percentage') {
-            $discountAmount = $originalPrice * ($discount->discount_value / 100);
-        } else {
-            $discountAmount = $discount->discount_value;
-        }
-
-        return max(0, $originalPrice - $discountAmount);
+    // 3. إذا لم يوجد خصم، أعد السعر الأصلي فوراً
+    if (!$discount) {
+        return $originalPrice;
     }
+
+    // 4. حساب قيمة الخصم
+    if ($discount->discount_type === 'percentage') {
+        $discountAmount = $originalPrice * ($discount->discount_value / 100);
+    } else {
+        $discountAmount = $discount->discount_value;
+    }
+
+    // 5. إرجاع السعر النهائي (بشرط ألا يقل عن صفر)
+    return round(max(0, $originalPrice - $discountAmount), 2);
+}
 }

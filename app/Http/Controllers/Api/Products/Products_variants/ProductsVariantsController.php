@@ -26,17 +26,16 @@ public function index()
 {
     $admin = Auth::user();
 
-    // 1. جلب البيانات في استعلام واحد فقط (Eager Loading)
     $variants = product_variant::with(['product:id,model_name', 'variantImages', 'inventories'])
         ->whereRelation('product', 'branch_id', $admin->branch_id)
         ->get();
 
     $result = [];
 
-    // 2. استخدام foreach واحدة لبناء المصفوفة يدوياً (أسرع من Map بمراتب)
     foreach ($variants as $v) {
-        // مفتاح فريد للتجميع بناءً على (المنتج + اللون + الاسم)
         $key = $v->product_id . '_' . $v->color . '_' . $v->variant_name;
+
+        $discountedPrice = DiscountsController::applyDiscount($v->id, $admin->branch_id);
 
         if (!isset($result[$key])) {
             $result[$key] = [
@@ -45,18 +44,16 @@ public function index()
                 'variant_name'  => $v->variant_name,
                 'color'         => $v->color,
                 'cost_price'    => $v->cost_price,
-                'selling_price' => DiscountsController::applyDiscount($v->id, $admin->branch_id),
+                'selling_price' => $discountedPrice, 
                 'sizes'         => [],
                 'images'        => []
             ];
 
-            // إضافة الصور مرة واحدة فقط لكل مجموعة
             foreach ($v->variantImages as $img) {
                 $result[$key]['images'][] = asset('storage/' . $img->image_path);
             }
         }
 
-        // إضافة المقاس والكمية للمجموعة الحالية مباشرة
         $quantity = 0;
         foreach ($v->inventories as $inv) {
             if ($inv->branch_id == $admin->branch_id) {
@@ -65,16 +62,16 @@ public function index()
         }
 
         $result[$key]['sizes'][] = [
-            'id'       => $v->id,
-            'size'     => $v->size,
-            'quantity' => $quantity
+            'id'            => $v->id,
+            'size'          => $v->size,
+            'quantity'      => $quantity,
+            'original_price' => $v->selling_price, 
+            'selling_price' => $discountedPrice,  
         ];
     }
 
-    // إعادة المصفوفة بدون مفاتيح نصية (لتحويلها لـ JSON Array)
     return response()->json(array_values($result));
 }
- 
 
  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////{store Methoud}//////////////////////////////////////////////////////////////////////////////////////////////////
