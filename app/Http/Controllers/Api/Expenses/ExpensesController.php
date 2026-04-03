@@ -18,7 +18,7 @@ class ExpensesController extends Controller
             return response()->json(['error' => 'غير مصرح لك يالقيام بهذه العملية'], 403);
         }
         
-        $expenses = expense::where('branch_id', )
+        $expenses = expense::where('branch_id',$admin->branch_id )
                            ->orderBy('created_at', 'desc')
                            ->get();
                            
@@ -92,8 +92,6 @@ class ExpensesController extends Controller
 
         $admin = Auth::user();
         
-        
-        ;
         $expense = expense::findOrFail($request->id);
 
         if ($admin->role !== 'admin' || $expense->branch_id !== $admin->branch_id) {

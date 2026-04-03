@@ -144,7 +144,7 @@ public function index(Request $request)
             'net_profit'       => round($netProfit, 2), 
             'gross_revenue'    => round($totalGrossProfit, 2),
             'total_expenses'   => round($totalExpenses, 2),
-            'final_net_profit' => round($actualNetProfit, 2),
+            'final_gross_profit' => round($actualNetProfit, 2),
             'profit_margin'    => $totalGrossProfit > 0 
                                   ? round(($actualNetProfit / $totalGrossProfit) * 100, 2) . '%' 
                                   : '0%',
