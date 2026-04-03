@@ -94,4 +94,66 @@ class ApprovedInvoicesController extends Controller
             ]);
         });
     }
+
+  ////////////////////////////////////////////////////////////////////////////////////////////
+    /////{revertApproval Invoice}///////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    public function revertApproval(Request $request)
+{
+
+$request->validate([
+        'invoiceId' => 'required|exists:invoices,id',
+    ]);
+
+    
+    $admin = Auth::user();
+    
+    if($admin->role != 'admin') {
+        return response()->json(['error' => 'لا تملك صلاحية تراجع عن اعتماد الفواتير'], 403);
+    }
+    
+    $invoice = invoice::where('branch_id', $admin->branch_id)->findOrFail($request->invoiceId);
+
+    if ($invoice->status !== 'approved') {
+        return response()->json(['error' => 'الفاتورة ليست معتمدة لتتمكن من تراجع عنها'], 400);
+    }
+
+    return DB::transaction(function () use ($invoice) {
+        settlement::where('invoice_id', $invoice->id)->delete();
+        
+        $invoice->update(['status' => 'pending']);
+
+        return response()->json(['message' => 'تم التراجع عن الاعتماد المالي بنجاح']);
+    });
+}
+
+
+  ////////////////////////////////////////////////////////////////////////////////////////////
+    /////{show Invoice}///////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+public function show(Request $request)
+{
+
+$request->validate([
+        'id' => 'required|exists:invoices,id',
+    ]);
+
+    $admin = Auth::user();
+
+    if($admin->role != 'admin') {
+        return response()->json(['error' => 'لا تملك صلاحية عرض تفاصيل الفواتير'], 403);
+    }
+    
+    $invoice = invoice::with(['invoiceItems.variant.product', 'user', 'settlement'])
+        ->where('branch_id', $admin->branch_id)
+        ->findOrFail($request->id);
+
+    return response()->json([
+        'success' => true,
+        'data' => $invoice
+    ]);
+}
 }
