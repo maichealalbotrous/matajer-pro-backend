@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Products\Products_variants;
 
 use App\Http\Controllers\Api\Discounts\DiscountsController;
 use App\Http\Controllers\Controller;
+use App\Models\Discount;
 use App\Models\inventory;
 use App\Models\product;
 use App\Models\product_variant;
@@ -277,4 +278,96 @@ public function addVariants(Request $request)
         return response()->json(['error' => 'فشل حذف الصورة: ' . $e->getMessage()], 500);
     }
 }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////{filter Methoud}//////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+public function filter(Request $request)
+{
+    $admin = Auth::user();
+    $searchTerm = $request->input('search');
+    $now = now()->toDateString();
+
+    $activeDiscounts =Discount::where('branch_id', $admin->branch_id)
+        ->where('is_active', true)
+        ->whereDate('start_date', '<=', $now)
+        ->whereDate('end_date', '>=', $now)
+        ->get()
+        ->keyBy('product_id');
+
+    $query = product_variant::with(['product:id,model_name', 'variantImages'])
+        ->withSum(['inventories as total_quantity' => function($q) use ($admin) {
+            $q->where('branch_id', $admin->branch_id);
+        }], 'quantity')
+        ->whereRelation('product', 'branch_id', $admin->branch_id);
+
+    if ($searchTerm) {
+        $query->where(function ($q) use ($searchTerm) {
+            $q->where('variant_name', 'LIKE', "%{$searchTerm}%")
+              ->orWhere('sku', 'LIKE', "%{$searchTerm}%")
+              ->orWhere('color', 'LIKE', "%{$searchTerm}%")
+              ->orWhere('size', 'LIKE', "%{$searchTerm}%")
+              ->orWhereHas('product', function ($pq) use ($searchTerm) {
+                  $pq->where('model_name', 'LIKE', "%{$searchTerm}%");
+              });
+        });
+    }
+
+    $variants = $query->get();
+
+    $result = [];
+
+    foreach ($variants as $v) {
+        $key = $v->product_id . '_' . $v->color . '_' . $v->variant_name;
+
+        $discount = $activeDiscounts->get($v->product_id);
+        $originalPrice = (float) $v->selling_price;
+        $discountedPrice = $originalPrice;
+
+        if ($discount) {
+            $discountAmount = ($discount->discount_type === 'percentage') 
+                ? $originalPrice * ($discount->discount_value / 100) 
+                : $discount->discount_value;
+            $discountedPrice = round(max(0, $originalPrice - $discountAmount), 2);
+        }
+
+        if (!isset($result[$key])) {
+            $result[$key] = [
+                'product_id'    => $v->product_id,
+                'product_name'  => $v->product->model_name ?? 'N/A',
+                'variant_name'  => $v->variant_name,
+                'color'         => $v->color,
+                'cost_price'    => $v->cost_price,
+                'selling_price' => $discountedPrice, 
+                'sizes'         => [],
+                'images'        => []
+            ];
+
+            foreach ($v->variantImages as $img) {
+                $result[$key]['images'][] = asset('storage/' . $img->image_path);
+            }
+        }
+
+        $result[$key]['sizes'][] = [
+            'id'             => $v->id,
+            'size'           => $v->size,
+            'quantity'       => $v->total_quantity ?? 0,
+            'original_price' => $originalPrice, 
+            'selling_price'  => $discountedPrice,  
+        ];
+    }
+
+    return response()->json([
+        'success' => true,
+        'count'   => count($result),
+        'data'    => array_values($result)
+    ]);
+}  
+
+
+    
 }
