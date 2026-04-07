@@ -17,15 +17,16 @@ class AdminPaymentsLogController extends Controller
             'payment_method' => 'nullable|string',
             'date_from'      => 'nullable|date',
             'date_to'        => 'nullable|date|after_or_equal:date_from',
-        ]);
+            'branch_id'      =>'required|exists:branches,id'
+            ]);
 
         $admin = Auth::user();
 
-        if ($admin->role !== 'admin') {
+        if ($admin->role !== 'super_admin') {
             return response()->json(['error' => 'غير مصرح لك بالوصول للبيانات المالية'], 403);
         }
 
-        $query = payment_log::where('branch_id', $admin->branch_id);
+        $query = payment_log::where('branch_id', $request->branch_id);
 
         if ($request->filled('payment_method')) {
             $query->where('payment_method', $request->payment_method);
@@ -48,17 +49,23 @@ class AdminPaymentsLogController extends Controller
     public function store(Request $request)
     {
         $request->validate([
+            'branch_id'      =>'required|exists:branches,id',
             'amount_paid'    => 'required|numeric|min:0.01',
             'currency'       => 'required|string|max:3',
             'payment_method' => 'required|string', 
-            'reference_number' => 'nullable|string|unique:payments_log,reference_number',
+            'reference_number' => 'nullable|string|unique:payment_logs,reference_number',
         ]);
 
+       
         $admin = Auth::user();
+
+        if ($admin->role !== 'super_admin') {
+            return response()->json(['error' => 'غير مصرح لك بالوصول للبيانات المالية'], 403);
+        }
 
         try {
             $payment = payment_log::create([
-                'branch_id'      => $admin->branch_id,
+                'branch_id'      => $request->branch_id,
                 'amount_paid'    => $request->amount_paid,
                 'currency'       => strtoupper($request->currency),
                 'payment_method' => $request->payment_method,
@@ -80,19 +87,21 @@ class AdminPaymentsLogController extends Controller
     public function update(Request $request)
 {
     $request->validate([
-        'id'             =>'required|exists:payments_log,id',
+        'id'             =>'required|exists:payment_logs,id',
+        'branch_id'     =>'required|exists:branches,id',
         'amount_paid'    => 'numeric|min:0.01',
         'currency'       => 'string|max:3',
         'payment_method' => 'string',
-        'reference_number' => 'nullable|string|unique:payments_log,reference_number,',
-    ]);
+        'reference_number' => 'nullable|string|unique:payment_logs,reference_number',
+   ]);
 
     $admin = Auth::user();
-    $payment = payment_log::where('branch_id', $admin->branch_id)->findOrFail($request->id);
+    $payment = payment_log::where('branch_id', $request->branch_id)->findOrFail($request->id);
 
-    if ($admin->role !== 'admin') {
-        return response()->json(['error' => 'غير مصرح لك بتعديل السجلات المالية'], 403);
-    }
+
+        if ($admin->role !== 'super_admin') {
+            return response()->json(['error' => 'غير مصرح لك بالوصول للبيانات المالية'], 403);
+        }
 
     try {
         $payment->update([
@@ -116,15 +125,16 @@ class AdminPaymentsLogController extends Controller
 
 public function destroy(Request $request)
 {
-    $request->validate(['id' => 'required|exists:payments_log,id']);
+    $request->validate(['id' => 'required|exists:payment_logs,id','branch_id' => 'required|exists:branches,id']);
     
-    $admin = Auth::user();
+   
+        $admin = Auth::user();
 
-    if ($admin->role !== 'admin') {
-        return response()->json(['error' => 'لا تملك صلاحية حذف السجلات المالية'], 403);
-    }
+        if ($admin->role !== 'super_admin') {
+            return response()->json(['error' => 'غير مصرح لك بالوصول للبيانات المالية'], 403);
+        }
 
-    $payment = payment_log::where('branch_id', $admin->branch_id)->findOrFail($request->id);
+    $payment = payment_log::where('branch_id', $request->branch_id)->findOrFail($request->id);
 
     try {
         $payment->delete();

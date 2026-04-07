@@ -1,11 +1,11 @@
 <?php
 
-use App\Http\Controllers\Api\AdminDashboard\AdminGlobal_configs\AdminGlobal_configsController;
+use App\Http\Controllers\Api\AdminDashboard\AdminPaymentsLog\AdminPaymentsLogController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('finance')->group(function () {
-    Route::get('/payments', [AdminGlobal_configsController::class, 'index']);
-    Route::post('/payments/store', [AdminGlobal_configsController::class, 'store']);
-    Route::put('/payments/update', [AdminGlobal_configsController::class, 'update']); 
-    Route::delete('/payments/delete', [AdminGlobal_configsController::class, 'destroy']); 
+Route::prefix('finance')->middleware('auth:sanctum')->group(function () {
+    Route::post('/payments', [AdminPaymentsLogController::class, 'index']);
+    Route::post('/payments/store', [AdminPaymentsLogController::class, 'store']);
+    Route::post('/payments/update', [AdminPaymentsLogController::class, 'update']); 
+    Route::delete('/payments/delete', [AdminPaymentsLogController::class, 'destroy']); 
 });
