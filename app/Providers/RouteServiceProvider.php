@@ -42,6 +42,8 @@ class RouteServiceProvider extends ServiceProvider
      $this->mapApiSettlementRoutes();
      $this->mapApiDiscountRoutes();
      $this->mapApiExpensesRoutes();
+    $this->mapApiAdminPaymentsLogRoutes();
+        $this->mapAdminGlobalConfigsRoutes();
     }
 
     
@@ -136,5 +138,20 @@ class RouteServiceProvider extends ServiceProvider
         Route::prefix('api')
              ->middleware('api')
              ->group(base_path('routes/public/Expenses_api.php'));
+    }
+
+    protected function mapApiAdminPaymentsLogRoutes()
+    {
+        Route::prefix('api')
+             ->middleware('api')
+             ->group(base_path('routes/SuperAdminDashboard/SuperAdminPaymentsLog_api.php'));
+    }
+
+
+    protected function mapAdminGlobalConfigsRoutes()
+    {
+        Route::prefix('api')
+             ->middleware('api')
+             ->group(base_path('routes/AdminDashboard/SuperAdminGlobalconfigs_api.php'));
     }
 }
