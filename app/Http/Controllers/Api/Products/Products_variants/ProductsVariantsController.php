@@ -43,9 +43,11 @@ public function index()
                 'id'            => $v->id,
                 'product'       => $v->product->model_name ?? 'N/A',
                 'variant_name'  => $v->variant_name,
+                'sku'          => $v->sku,
                 'color'         => $v->color,
                 'cost_price'    => $v->cost_price,
-                'selling_price' => $discountedPrice, 
+                'original_price' => $v->selling_price, 
+                'selling_price_withDiscounts' => $discountedPrice, 
                 'sizes'         => [],
                 'images'        => []
             ];
@@ -64,10 +66,12 @@ public function index()
 
         $result[$key]['sizes'][] = [
             'id'            => $v->id,
+            'sku'          => $v->sku,
             'size'          => $v->size,
             'quantity'      => $quantity,
+            'cost_price' => $v->cost_price,
             'original_price' => $v->selling_price, 
-            'selling_price' => $discountedPrice,  
+            'selling_price_withDiscounts' => $discountedPrice,  
         ];
     }
 
@@ -288,11 +292,20 @@ public function addVariants(Request $request)
 
 public function filter(Request $request)
 {
+    $request->validate([
+        'search' => 'nullable|string|max:255',
+        'color'  => 'nullable|string',
+        'size'   => 'nullable|string',
+        'sku'    => 'nullable|string',
+        'cost_price' => 'nullable|numeric',
+        'selling_price' => 'nullable|numeric|min:0',
+        
+    ]);
+    
     $admin = Auth::user();
-    $searchTerm = $request->input('search');
     $now = now()->toDateString();
 
-    $activeDiscounts =Discount::where('branch_id', $admin->branch_id)
+    $activeDiscounts = Discount::where('branch_id', $admin->branch_id)
         ->where('is_active', true)
         ->whereDate('start_date', '<=', $now)
         ->whereDate('end_date', '>=', $now)
@@ -305,7 +318,31 @@ public function filter(Request $request)
         }], 'quantity')
         ->whereRelation('product', 'branch_id', $admin->branch_id);
 
-    if ($searchTerm) {
+        
+    
+    if ($request->filled('color')) {
+        $query->where('color', $request->color);
+    }
+
+    if ($request->filled('size')) {
+        $query->where('size', $request->size);
+    }
+
+    if ($request->filled('sku')) {
+        $query->where('sku', $request->sku);
+    }
+
+    if($request->filled('cost_price')) {
+        $query->where('cost_price', $request->cost_price);
+    }
+
+    if($request->filled('selling_price')) {
+        $query->where('selling_price', $request->selling_price);
+        
+    }
+
+    if ($request->filled('search')) {
+        $searchTerm = $request->search;
         $query->where(function ($q) use ($searchTerm) {
             $q->where('variant_name', 'LIKE', "%{$searchTerm}%")
               ->orWhere('sku', 'LIKE', "%{$searchTerm}%")
@@ -318,7 +355,6 @@ public function filter(Request $request)
     }
 
     $variants = $query->get();
-
     $result = [];
 
     foreach ($variants as $v) {
@@ -335,6 +371,10 @@ public function filter(Request $request)
             $discountedPrice = round(max(0, $originalPrice - $discountAmount), 2);
         }
 
+        if ($request->filled('size') && $v->size != $request->size) {
+            continue;
+        }
+
         if (!isset($result[$key])) {
             $result[$key] = [
                 'product_id'    => $v->product_id,
@@ -342,7 +382,8 @@ public function filter(Request $request)
                 'variant_name'  => $v->variant_name,
                 'color'         => $v->color,
                 'cost_price'    => $v->cost_price,
-                'selling_price' => $discountedPrice, 
+                'original_price' => $originalPrice,
+                'selling_price_withDiscounts' => $discountedPrice, 
                 'sizes'         => [],
                 'images'        => []
             ];
@@ -355,9 +396,11 @@ public function filter(Request $request)
         $result[$key]['sizes'][] = [
             'id'             => $v->id,
             'size'           => $v->size,
+            'sku'            => $v->sku,
             'quantity'       => $v->total_quantity ?? 0,
+            'cost_price'    => $v->cost_price,
             'original_price' => $originalPrice, 
-            'selling_price'  => $discountedPrice,  
+            'selling_price_withDiscounts'  => $discountedPrice,  
         ];
     }
 
@@ -366,7 +409,7 @@ public function filter(Request $request)
         'count'   => count($result),
         'data'    => array_values($result)
     ]);
-}  
+}
 
 
     
