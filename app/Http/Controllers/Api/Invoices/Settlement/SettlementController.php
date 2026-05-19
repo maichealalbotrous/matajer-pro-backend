@@ -160,7 +160,7 @@ public function index(Request $request)
     /////{inventoryAudit Settlements}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
   public function inventoryAudit()
-{
+  {
     $admin = Auth::user();
 
     if ($admin->role !== 'admin') {
@@ -176,6 +176,8 @@ public function index(Request $request)
     $totalInventoryMarket = 0;
 
     foreach ($inventoryData as $item) {
+
+
         $variant = $item->variant;
         if (!$variant) continue;
 
@@ -187,10 +189,10 @@ public function index(Request $request)
 
         $totalItemCost = round($qty * $cost, 2);
         $totalItemMarket = round($qty * $selling, 2);
-
+            
         if (!isset($groupedItems[$key])) {
             $groupedItems[$key] = [
-                'product_name'       => $variant->product->model_name ?? 'N/A', 
+                'product_name'       => $variant->product->model_name ?? 'N/A',
                 'variant_name'       => $variant->variant_name, 
                 'color'              => $variant->color,
                 'cost_price'         => $cost,
@@ -210,7 +212,7 @@ public function index(Request $request)
             'variant_id' => $variant->id,
             'size'       => $variant->size,
             'quantity'   => $qty
-        ];
+        ]; 
 
         $totalInventoryCost += $totalItemCost;
         $totalInventoryMarket += $totalItemMarket;
