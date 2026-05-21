@@ -43,7 +43,7 @@ public function index()
                 'id'            => $v->id,
                 'product'       => $v->product->model_name ?? 'N/A',
                 'variant_name'  => $v->variant_name,
-                'sku'          => $v->sku,
+                'sku'           => $v->sku,
                 'color'         => $v->color,
                 'cost_price'    => $v->cost_price,
                 'original_price' => $v->selling_price, 
@@ -66,7 +66,7 @@ public function index()
 
         $result[$key]['sizes'][] = [
             'id'            => $v->id,
-            'sku'          => $v->sku,
+            'sku'           => $v->sku,
             'size'          => $v->size,
             'quantity'      => $quantity,
             'cost_price' => $v->cost_price,
@@ -92,8 +92,9 @@ public function addVariants(Request $request)
         'colors_groups.*.cost_price'       => 'required|numeric',
         'colors_groups.*.selling_price' => 'required|numeric|min:0', 
         'colors_groups.*.sku'              => 'required|string', 
-        'colors_groups.*.images'           => 'nullable|array',
+        /* 'colors_groups.*.images'           => 'nullable|array',
         'colors_groups.*.images.*'         => 'image|mimes:jpeg,png,jpg|max:2048',
+        */ // 
         
         'colors_groups.*.sizes'            => 'required|array|min:1',
         'colors_groups.*.sizes.*.size'     => 'nullable|string',
@@ -125,12 +126,13 @@ public function addVariants(Request $request)
                         'selling_price'=> $colorData['selling_price'], 
                     ]);
 
-                    if ($request->hasFile("colors_groups.$colorIndex.images")) {
+                    /* if ($request->hasFile("colors_groups.$colorIndex.images")) {
                         foreach ($request->file("colors_groups.$colorIndex.images") as $imgFile) {
                             $path = $imgFile->store('products/variants/gallery', 'public');
                             $variant->variantImages()->create(['image_path' => $path]);
                         }
                     }
+                    */ 
 
                     inventory::create([
                         'branch_id'  => $admin->branch_id,
@@ -161,8 +163,9 @@ public function addVariants(Request $request)
             'colors_groups.*.cost_price'       => 'nullable|numeric',
             'colors_groups.*.selling_price' => 'nullable|numeric|min:0', 
             'colors_groups.*.sku'              => 'nullable|string', 
-            'colors_groups.*.images'           => 'nullable|array',
+            /* 'colors_groups.*.images'           => 'nullable|array',
             'colors_groups.*.images.*'         => 'image|mimes:jpeg,png,jpg|max:2048',
+            */ // 
             
             'colors_groups.*.sizes'            => 'required|array|min:1',
             'colors_groups.*.sizes.*.id'       => 'required|exists:product_variants,id', 
@@ -205,13 +208,14 @@ public function addVariants(Request $request)
                                 'quantity' => $sizeData['quantity'] 
                             ]);
                     }
-                                            
-                        if ($request->hasFile("colors_groups.$colorIndex.images")) {
-                            foreach ($request->file("colors_groups.$colorIndex.images") as $imgFile) {
-                                $path = $imgFile->store('products/variants/gallery', 'public');
-                                $variant->variantImages()->create(['image_path' => $path]);
-                            }
+                                                     
+                    /* if ($request->hasFile("colors_groups.$colorIndex.images")) {
+                        foreach ($request->file("colors_groups.$colorIndex.images") as $imgFile) {
+                            $path = $imgFile->store('products/variants/gallery', 'public');
+                            $variant->variantImages()->create(['image_path' => $path]);
                         }
+                    }
+                    */ // 
                     }
                 }
 
@@ -222,7 +226,7 @@ public function addVariants(Request $request)
         }
     }
 
-     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+ ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //////{destroy Methoud}//////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     

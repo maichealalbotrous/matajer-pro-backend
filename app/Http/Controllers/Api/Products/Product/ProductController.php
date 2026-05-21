@@ -73,7 +73,7 @@ class ProductController extends Controller
         $request->validate([
             'model_name'   => 'required|string|max:255',
             'model_number' => 'nullable|string',
-            'image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            /* 'image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048', */ // تهميش التحقق من الصورة
         ]);
 
        $admin = Auth::user();
@@ -82,14 +82,15 @@ class ProductController extends Controller
         }
         try {
             $mainImagePath = null;
-            if ($request->hasFile('image')) {
+            /* if ($request->hasFile('image')) {
                 $mainImagePath = $request->file('image')->store('products/main', 'public');
             }
+            */ // 
 
             $product = product::create([
                 'model_name'   => $request->model_name,
                 'model_number' => $request->model_number,
-                'image'        => $mainImagePath,
+                'image'        => $mainImagePath, //  null حالياً
                 'branch_id'    => $admin->branch_id,
             ]);
 
@@ -114,7 +115,7 @@ class ProductController extends Controller
             'id'           => 'required|integer|exists:products,id',
             'model_name'   => 'required|string|max:255',
             'model_number' => 'nullable|string',
-            'image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            /* 'image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048', */ // تهميش التحقق من الصورة
         ]);
 
         $product = product::findOrFail($request->id);
@@ -126,12 +127,13 @@ class ProductController extends Controller
         }
         
         try {
-            if ($request->hasFile('image')) {
+            /* if ($request->hasFile('image')) {
                 if ($product->image) {
                     Storage::disk('public')->delete($product->image);
                 }
                 $product->image = $request->file('image')->store('products/main', 'public');
             }
+            */ // 
 
             $product->update([
                 'model_name'   => $request->model_name,
