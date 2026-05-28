@@ -10,5 +10,5 @@ Route::prefix('settlements')->middleware('auth:sanctum')->group(function () {
     Route::get('/top_products', [SettlementController::class, 'topProfitable']);
     Route::get('/lowStockAlerts', [SettlementController::class, 'lowStockAlerts']);
     Route::post('/show', [SettlementController::class, 'show']);
-    Route::get('/delete', [SettlementController::class, 'delete']); 
+    Route::delete('/delete', [SettlementController::class, 'delete']); 
 });
