@@ -20,10 +20,6 @@ class ProductController extends Controller
 {
     $admin = Auth::user();
 
-    if ($admin->role != 'admin') {
-        return response()->json(['error' => 'غير مسموح لك للقيام بهذه العملية'], 403);
-    }
-
     $products = product::with(['variants.variantImages', 'variants.inventories'])
         ->where('branch_id', $admin->branch_id)
         ->get();
