@@ -74,7 +74,7 @@ public function index()
             'id' => 'required|exists:branches,id'
         ]);
 
-        if (User::Auth()->role !== 'super_admin') {
+        if (Auth::User()->role !== 'super_admin') {
             return response()->json(['message' => 'غير مصرح لك بالقيام بهذه العملية'], 403);
         }
 
@@ -125,7 +125,7 @@ public function index()
             'months' => 'required|integer|min:1'
         ]);
 
-        if (User::Auth()->role !== 'super_admin') {
+        if (Auth::User()->role !== 'super_admin') {
             return response()->json(['message' => 'صلاحية غير كافية'], 403);
         }
 
@@ -148,17 +148,17 @@ public function index()
     /////{checkExpirations FUNCTION}////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////
 
-    public function checkExpirations()
-{
-      if (User::Auth()->role !== 'super_admin') {
-            return response()->json(['message' => 'غير مصرح لك بالقيام بهذه العملية'], 403);
-        }
+//     public function checkExpirations()
+// {
+//       if (Auth::User()->role !== 'super_admin') {
+//             return response()->json(['message' => 'غير مصرح لك بالقيام بهذه العملية'], 403);
+//         }
         
-    $expiredBranches = branche::where('is_active', true)
-                               ->where('expiry_date', '<', now())
-                               ->update(['is_active' => false]);
+//     $expiredBranches = branche::where('is_active', true)
+//                                ->where('expiry_date', '<', now())
+//                                ->update(['is_active' => false]);
 
-    return response()->json(['message' => 'تم تحديث حالة الفروع المنتهية الصلاحية']);
-}
+//     return response()->json(['message' => 'تم تحديث حالة الفروع المنتهية الصلاحية']);
+// }
 
 }
