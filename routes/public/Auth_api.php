@@ -7,3 +7,7 @@ Route::prefix('Auth')->group(function () {
     Route::post('/register', [AuthController::class, 'registerAdmin']);
     Route::post('/login', [AuthController::class, 'login']);
 });
+
+Route::prefix('Auth')->middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+});
