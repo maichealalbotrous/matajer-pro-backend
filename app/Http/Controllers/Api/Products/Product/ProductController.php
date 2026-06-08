@@ -20,7 +20,7 @@ class ProductController extends Controller
 {
     $admin = Auth::user();
 
-    $products = product::with(['variants.variantImages', 'variants.inventories'])
+    $products = product::with(['variants', 'variants.inventories'])
         ->where('branch_id', $admin->branch_id)
         ->get();
 
@@ -48,9 +48,9 @@ class ProductController extends Controller
                             'quantity' => $v->inventories->sum('quantity'),
                         ];
                     })->values(),
-                    'images'       => $variants->flatMap->variantImages->pluck('image_path')->unique()->map(function ($path) {
-                        return asset('storage/' . $path);
-                    })->values(),
+                    // 'images'       => $variants->flatMap->variantImages->pluck('image_path')->unique()->map(function ($path) {
+                    //     return asset('storage/' . $path);
+                    // })->values(),
                 ];
             })->values(),
         ];
@@ -77,7 +77,7 @@ class ProductController extends Controller
             return response()->json(['error' => 'غير مسموح لك للقيام بهذه العملية'], 403);
         }
         try {
-            $mainImagePath = null;
+            // $mainImagePath = null;
             /* if ($request->hasFile('image')) {
                 $mainImagePath = $request->file('image')->store('products/main', 'public');
             }
@@ -86,7 +86,7 @@ class ProductController extends Controller
             $product = product::create([
                 'model_name'   => $request->model_name,
                 'model_number' => $request->model_number,
-                'image'        => $mainImagePath, //  null حالياً
+                // 'image'        => $mainImagePath, //  null حالياً
                 'branch_id'    => $admin->branch_id,
             ]);
 
@@ -134,7 +134,7 @@ class ProductController extends Controller
             $product->update([
                 'model_name'   => $request->model_name,
                 'model_number' => $request->model_number,
-                'image'        => $product->image,
+                // 'image'        => $product->image,
             ]);
 
             return response()->json(['message' => 'تم تحديث بيانات المنتج بنجاح', 'product' => $product]);

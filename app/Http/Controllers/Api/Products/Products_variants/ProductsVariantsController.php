@@ -27,7 +27,7 @@ public function index()
 {
     $admin = Auth::user();
 
-    $variants = product_variant::with(['product:id,model_name', 'variantImages', 'inventories'])
+    $variants = product_variant::with(['product:id,model_name', 'inventories'])
         ->whereRelation('product', 'branch_id', $admin->branch_id)
         ->get();
 
@@ -49,12 +49,12 @@ public function index()
                 'original_price' => $v->selling_price, 
                 'selling_price_withDiscounts' => $discountedPrice, 
                 'sizes'         => [],
-                'images'        => []
+                // 'images'        => []
             ];
 
-            foreach ($v->variantImages as $img) {
-                $result[$key]['images'][] = asset('storage/' . $img->image_path);
-            }
+            // foreach ($v->variantImages as $img) {
+            //     $result[$key]['images'][] = asset('storage/' . $img->image_path);
+            // }
         }
 
         $quantity = 0;
@@ -234,7 +234,7 @@ public function addVariants(Request $request)
     {
         $request->validate(['id' => 'required|exists:product_variants,id']);
         
-        $variant = product_variant::with(['variantImages', 'product'])->findOrFail($request->id);
+        $variant = product_variant::with([ 'product'])->findOrFail($request->id);
         
         $admin = Auth::user();
         
@@ -243,9 +243,9 @@ public function addVariants(Request $request)
         }
 
         try {
-            foreach ($variant->variantImages as $image) {
-                Storage::disk('public')->delete($image->image_path);
-            }
+            // foreach ($variant->variantImages as $image) {
+            //     Storage::disk('public')->delete($image->image_path);
+            // }
             
             $variant->delete();
             return response()->json(['message' => 'تم حذف الموديل بالكامل']);
@@ -258,34 +258,34 @@ public function addVariants(Request $request)
     //////{destroy images Methoud}//////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
-    public function destroyVariantImage(Request $request)
-{
-    $request->validate([
-        'image_id' => 'required|exists:variant_images,id',
-    ]);
+//     public function destroyVariantImage(Request $request)
+// {
+//     $request->validate([
+//         'image_id' => 'required|exists:variant_images,id',
+//     ]);
 
-    $image = variant_images::with('productVariant.product')->findOrFail($request->image_id);
+//     $image = variant_images::with('productVariant.product')->findOrFail($request->image_id);
 
-    $branchId = $image->productVariant->product->branch_id;
+//     $branchId = $image->productVariant->product->branch_id;
     
-    $admin = Auth::user();
+//     $admin = Auth::user();
     
-    if ($admin->role != 'admin' || $branchId != $admin->branch_id) {
-        return response()->json(['error' => 'غير مسموح لك بالقيام بهذه العملية'], 403);
-    }
+//     if ($admin->role != 'admin' || $branchId != $admin->branch_id) {
+//         return response()->json(['error' => 'غير مسموح لك بالقيام بهذه العملية'], 403);
+//     }
 
-    try {
-        if (Storage::disk('public')->exists($image->image_path)) {
-            Storage::disk('public')->delete($image->image_path);
-        }
+//     try {
+//         if (Storage::disk('public')->exists($image->image_path)) {
+//             Storage::disk('public')->delete($image->image_path);
+//         }
 
-        $image->delete();
+//         $image->delete();
 
-        return response()->json(['message' => 'تم حذف الصورة بنجاح']);
-    } catch (\Exception $e) {
-        return response()->json(['error' => 'فشل حذف الصورة: ' . $e->getMessage()], 500);
-    }
-}
+//         return response()->json(['message' => 'تم حذف الصورة بنجاح']);
+//     } catch (\Exception $e) {
+//         return response()->json(['error' => 'فشل حذف الصورة: ' . $e->getMessage()], 500);
+//     }
+// }
 
 
 
@@ -316,7 +316,7 @@ public function filter(Request $request)
         ->get()
         ->keyBy('product_id');
 
-    $query = product_variant::with(['product:id,model_name', 'variantImages'])
+    $query = product_variant::with(['product:id,model_name'])
         ->withSum(['inventories as total_quantity' => function($q) use ($admin) {
             $q->where('branch_id', $admin->branch_id);
         }], 'quantity')
@@ -389,12 +389,12 @@ public function filter(Request $request)
                 'original_price' => $originalPrice,
                 'selling_price_withDiscounts' => $discountedPrice, 
                 'sizes'         => [],
-                'images'        => []
+                // 'images'        => []
             ];
 
-            foreach ($v->variantImages as $img) {
-                $result[$key]['images'][] = asset('storage/' . $img->image_path);
-            }
+            // foreach ($v->variantImages as $img) {
+            //     $result[$key]['images'][] = asset('storage/' . $img->image_path);
+            // }
         }
 
         $result[$key]['sizes'][] = [

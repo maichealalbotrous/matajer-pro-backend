@@ -23,7 +23,7 @@ return new class extends Migration
     $table->decimal('selling_price', 10, 2)->nullable()->default(0.00); 
     $table->string('variant_name')->nullable(); 
     $table->string('sku')->unique()->nullable();
-    $table->string('images')->nullable();
+    // $table->string('images')->nullable();
     $table->timestamps();
         });
     }

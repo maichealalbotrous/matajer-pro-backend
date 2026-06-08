@@ -159,28 +159,62 @@ public function index(Request $request)
     ////////////////////////////////////////////////////////////////////////////////////////////
     /////{inventoryAudit Settlements}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-  public function inventoryAudit()
-  {
+public function inventoryAudit(Request $request)
+{
     $admin = Auth::user();
 
     if ($admin->role !== 'admin') {
         return response()->json(['success' => false, 'message' => 'غير مصرح لك'], 403);
     }
     
-    $inventoryData = inventory::with(['variant.product:id,model_name'])
-        ->where('branch_id', $admin->branch_id)
-        ->get();
+    // 1. بناء الاستعلام الأساسي المرتبط بفرع المشرف الحالي
+    $query = inventory::with(['variant.product:id,model_name'])
+        ->where('branch_id', $admin->branch_id);
+
+    // 2. [التصفية والبحث المباشر الصارم]
+    if ($request->has('search') && !empty($request->input('search'))) {
+        $searchTerm = $request->input('search');
+        
+        // استخدام حلقة تجميعية لحماية الـ Scope وعزل شروط الـ OR
+        $query->where(function($mainQuery) use ($searchTerm) {
+            $mainQuery->whereHas('variant', function ($q) use ($searchTerm) {
+                $q->where(function($innerQuery) use ($searchTerm) {
+                    $innerQuery->where('variant_name', 'LIKE', "%{$searchTerm}%")
+                               ->orWhere('sku', 'LIKE', "%{$searchTerm}%")
+                               ->orWhere('color', 'LIKE', "%{$searchTerm}%")
+                               ->orWhere('size', 'LIKE', "%{$searchTerm}%");
+                })
+                ->orWhereHas('product', function ($pq) use ($searchTerm) {
+                    $pq->where('model_name', 'LIKE', "%{$searchTerm}%");
+                });
+            });
+        });
+    }
+
+    $inventoryData = $query->get();
+
+    // 💡 [حالة عدم مطابقة البحث]: إذا لم يعثر السيرفر على نتائج، يعيد سلة وإحصائيات صفرية فوراً
+    if ($inventoryData->isEmpty()) {
+        return response()->json([
+            'success' => true,
+            'statistics' => [
+                'total_inventory_cost'   => 0,
+                'total_inventory_market' => 0,
+                'potential_profit'       => 0,
+            ],
+            'items' => []
+        ]);
+    }
 
     $groupedItems = [];
     $totalInventoryCost = 0;
     $totalInventoryMarket = 0;
 
     foreach ($inventoryData as $item) {
-
-
         $variant = $item->variant;
         if (!$variant) continue;
 
+        // تجميع المنتجات بناءً على (المنتج + اللون + الموديل)
         $key = $variant->product_id . '_' . $variant->color . '_' . $variant->variant_name;
 
         $cost = (float) $variant->cost_price;
@@ -192,28 +226,33 @@ public function index(Request $request)
             
         if (!isset($groupedItems[$key])) {
             $groupedItems[$key] = [
+                'product_id'         => $variant->product_id,
                 'product_name'       => $variant->product->model_name ?? 'N/A',
                 'variant_name'       => $variant->variant_name, 
                 'color'              => $variant->color,
                 'cost_price'         => $cost,
-                'selling_price'      => $selling,
-                'total_group_qty'    => 0,
+                'original_price'     => $selling,
+                'total_group_qty'    => 0, 
                 'total_group_cost'   => 0,
                 'total_group_market' => 0,
-                'sizes_details'      => [] 
+                'sizes'              => []
             ];
         }
 
+        // تجميع حسابات الكرت الظاهر بناءً على الفلترة الحالية
         $groupedItems[$key]['total_group_qty']    += $qty;
         $groupedItems[$key]['total_group_cost']   += $totalItemCost;
         $groupedItems[$key]['total_group_market'] += $totalItemMarket;
-        
-        $groupedItems[$key]['sizes_details'][] = [
-            'variant_id' => $variant->id,
-            'size'       => $variant->size,
-            'quantity'   => $qty
+
+        // حقن تفاصيل المقاسات
+        $groupedItems[$key]['sizes'][] = [
+            'id'       => $variant->id,
+            'size'     => $variant->size,
+            'sku'      => $variant->sku,
+            'quantity' => $qty,
         ]; 
 
+        // الإحصائيات العامة بالأعلى تتحدث ديناميكياً لتشمل المنتجات المبحوث عنها فقط
         $totalInventoryCost += $totalItemCost;
         $totalInventoryMarket += $totalItemMarket;
     }

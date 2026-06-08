@@ -6,13 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class variant_images extends Model
 {
-    protected $fillable = [
-        'variant_id',
-        'image_path',
-    ];
+    // protected $fillable = [
+    //     'variant_id',
+    //     'image_path',
+    // ];
 
-    public function productVariant()
-    {
-        return $this->belongsTo(product_variant::class, 'variant_id');
-    }
+    // public function productVariant()
+    // {
+    //     return $this->belongsTo(product_variant::class, 'variant_id');
+    // }
 }
