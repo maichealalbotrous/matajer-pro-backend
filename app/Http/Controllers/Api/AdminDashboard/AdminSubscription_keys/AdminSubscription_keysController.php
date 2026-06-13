@@ -55,4 +55,28 @@ class AdminSubscription_keysController extends Controller
         ], 201);
     }
 
+
+    public function destroy(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|integer|exists:subscription_keys,id',
+        ]);
+        
+        if(Auth::user()->phone != '0900000000' || Auth::user()->role != 'super_admin'){
+            return response()->json(['message' => 'this section is for admin only , هذا القسم خاص بالمدير فقط (المبرمج)'], 401);
+        }
+
+        $key = subscription_keys::find($request->id);
+
+        if (!$key) {
+            return response()->json(['status' => 'error', 'message' => 'كود الاشتراك غير موجود أو تم حذفه مسبقاً.'], 404);
+        }
+
+        $key->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'تم حذف كود الاشتراك بنجاح من قاعدة البيانات.'
+        ], 200);
+    }
 }
