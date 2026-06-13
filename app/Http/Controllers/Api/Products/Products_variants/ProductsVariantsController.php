@@ -23,40 +23,48 @@ class ProductsVariantsController extends Controller
     //////{Index Methoud}//////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
-public function index()
+public function index(Request $request)
 {
     $admin = Auth::user();
+    $request->validate([
+        'product_id' => 'required|exists:products,id',
+    ]);
 
+    // التحقق من وجود الـ product_id لضمان عدم جلب بيانات عشوائية
+    if (!$request->has('product_id') || empty($request->product_id)) {
+        return response()->json(['message' => 'Product ID is required'], 400);
+    }
+
+    // جلب موديلات المنتج المحدد التابع لفرع الآدمين الحالي حصراً
     $variants = product_variant::with(['product:id,model_name', 'inventories'])
+        ->where('product_id', $request->product_id)
         ->whereRelation('product', 'branch_id', $admin->branch_id)
         ->get();
 
     $result = [];
 
     foreach ($variants as $v) {
+        // تجميع فريد بناءً على رقم المنتج، اللون، واسم الموديل
         $key = $v->product_id . '_' . $v->color . '_' . $v->variant_name;
-
+        
+        // حساب السعر بعد الخصومات المعتمدة للفرع
         $discountedPrice = DiscountsController::applyDiscount($v->id, $admin->branch_id);
 
         if (!isset($result[$key])) {
             $result[$key] = [
-                'id'            => $v->id,
-                'product'       => $v->product->model_name ?? 'N/A',
-                'variant_name'  => $v->variant_name,
-                'sku'           => $v->sku,
-                'color'         => $v->color,
-                'cost_price'    => $v->cost_price,
-                'original_price' => $v->selling_price, 
-                'selling_price_withDiscounts' => $discountedPrice, 
-                'sizes'         => [],
-                // 'images'        => []
+                'id'                           => $v->id,
+                'product'                      => $v->product->model_name ?? 'N/A',
+                'variant_name'                 => $v->variant_name,
+                'sku'                          => $v->sku,
+                'color'                        => $v->color,
+                'cost_price'                   => $v->cost_price,
+                'original_price'               => $v->selling_price, 
+                'selling_price_withDiscounts'  => $discountedPrice, 
+                'sizes'                        => []
             ];
-
-            // foreach ($v->variantImages as $img) {
-            //     $result[$key]['images'][] = asset('storage/' . $img->image_path);
-            // }
         }
 
+        // حساب إجمالي الكمية المتوفرة في المخازن التابعة لهذا الفرع فقط
         $quantity = 0;
         foreach ($v->inventories as $inv) {
             if ($inv->branch_id == $admin->branch_id) {
@@ -64,14 +72,15 @@ public function index()
             }
         }
 
+        // دفع المقاسات والكميات التابعة لنفس المجموعة
         $result[$key]['sizes'][] = [
-            'id'            => $v->id,
-            'sku'           => $v->sku,
-            'size'          => $v->size,
-            'quantity'      => $quantity,
-            'cost_price' => $v->cost_price,
-            'original_price' => $v->selling_price, 
-            'selling_price_withDiscounts' => $discountedPrice,  
+            'id'                           => $v->id,
+            'sku'                          => $v->sku,
+            'size'                         => $v->size,
+            'quantity'                     => $quantity,
+            'cost_price'                   => $v->cost_price,
+            'original_price'               => $v->selling_price, 
+            'selling_price_withDiscounts'  => $discountedPrice,  
         ];
     }
 
@@ -297,6 +306,7 @@ public function addVariants(Request $request)
 public function filter(Request $request)
 {
     $request->validate([
+        'product_id' => 'nullable|exists:products,id',
         'search' => 'nullable|string|max:255',
         'color'  => 'nullable|string',
         'size'   => 'nullable|string',
@@ -309,6 +319,12 @@ public function filter(Request $request)
     $admin = Auth::user();
     $now = now()->toDateString();
 
+
+       if (!$request->has('product_id') || empty($request->product_id)) {
+        return response()->json(['message' => 'Product ID is required'], 400);
+    }
+
+    
     $activeDiscounts = Discount::where('branch_id', $admin->branch_id)
         ->where('is_active', true)
         ->whereDate('start_date', '<=', $now)
@@ -317,10 +333,12 @@ public function filter(Request $request)
         ->keyBy('product_id');
 
     $query = product_variant::with(['product:id,model_name'])
+        ->where('product_id', $request->product_id)
         ->withSum(['inventories as total_quantity' => function($q) use ($admin) {
             $q->where('branch_id', $admin->branch_id);
         }], 'quantity')
         ->whereRelation('product', 'branch_id', $admin->branch_id);
+
 
         
     
