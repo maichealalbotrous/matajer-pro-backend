@@ -38,7 +38,7 @@ public function getEmployeeInvoices(Request $request)
                     'variant_id' => $item->variant_id,
                     'quantity' => $item->quantity,
                     'sold_at_price' => $item->sold_at_price,
-                    'variant_name' => ($item->variant->product->name ?? 'منتج') . ' - ' . ($item->variant->size ?? '')
+                    'variant_name' => ($item->variant->product->name ?? $item->variant->variant_name) . ' - ' . ($item->variant->size ?? '')
                 ];
             })
         ];
