@@ -124,8 +124,7 @@ public function addVariants(Request $request)
                 
                 foreach ($colorData['sizes'] as $sizeIndex => $sizeData) {
                     
-                    $uniqueSizeSku = $colorData['sku'] . '-' . ($sizeData['size'] ?? $sizeIndex);
-
+                    $uniqueSizeSku = $colorData['sku'] . '-' . ($sizeData['size'] ?? $sizeIndex) . '-' . substr(uniqid(), -4);
                     $variant = $product->variants()->create([
                         'variant_name' => $colorData['variant_name'] ?? $product->model_name,
                         'sku'          => $uniqueSizeSku, 
