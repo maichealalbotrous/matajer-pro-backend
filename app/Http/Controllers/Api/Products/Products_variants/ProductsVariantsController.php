@@ -124,8 +124,8 @@ public function addVariants(Request $request)
                 
                 foreach ($colorData['sizes'] as $sizeIndex => $sizeData) {
                     
-                    $uniqueSizeSku = $colorData['sku'] . '-' . ($sizeData['size'] ?? $sizeIndex);
-
+                    $uniqueSizeSku = $colorData['sku'] . '-' . ($sizeData['size'] ?? $sizeIndex) . '-' . substr(uniqid(), -4);
+                    
                     $variant = $product->variants()->create([
                         'variant_name' => $colorData['variant_name'] ?? $product->model_name,
                         'sku'          => $uniqueSizeSku, 
@@ -165,21 +165,19 @@ public function addVariants(Request $request)
      public function updateVariant(Request $request)
     {
         $request->validate([
-            'id'                               => 'required|exists:products,id',
-            'colors_groups'                    => 'required|array|min:1',
-            'colors_groups.*.color'            => 'nullable|string',
-            'colors_groups.*.variant_name'     => 'nullable|string', 
-            'colors_groups.*.cost_price'       => 'nullable|numeric',
-            'colors_groups.*.selling_price' => 'nullable|numeric|min:0', 
-            'colors_groups.*.sku'              => 'nullable|string', 
-            /* 'colors_groups.*.images'           => 'nullable|array',
-            'colors_groups.*.images.*'         => 'image|mimes:jpeg,png,jpg|max:2048',
-            */ // 
+            'id'                                    => 'required|exists:products,id',
+            'colors_groups'                         => 'required|array|min:1',
+            'colors_groups.*.color'                 => 'nullable|string',
+            'colors_groups.*.variant_name'          => 'nullable|string', 
             
-            'colors_groups.*.sizes'            => 'required|array|min:1',
-            'colors_groups.*.sizes.*.id'       => 'required|exists:product_variants,id', 
-            'colors_groups.*.sizes.*.size'     => 'nullable|string',
-            'colors_groups.*.sizes.*.quantity' => 'nullable|integer|min:0',
+            'colors_groups.*.sizes'                 => 'required|array|min:1',
+            'colors_groups.*.sizes.*.id'            => 'nullable|exists:product_variants,id', 
+            'colors_groups.*.sizes.*.size'          => 'nullable|string',
+            'colors_groups.*.sizes.*.quantity'      => 'nullable|integer|min:0',
+            // نقلنا هذه الحقول لتصبح تابعة لكل مقاس بناءً على تصميم الواجهة لديك
+            'colors_groups.*.sizes.*.cost_price'    => 'nullable|numeric',
+            'colors_groups.*.sizes.*.selling_price' => 'nullable|numeric|min:0', 
+            'colors_groups.*.sizes.*.sku'           => 'nullable|string', 
         ]);
 
         $product = product::findOrFail($request->id);
@@ -193,41 +191,63 @@ public function addVariants(Request $request)
         try {
             return DB::transaction(function () use ($admin, $request, $product) {
                 
-                foreach ($request->colors_groups as $colorIndex => $colorData) {
+         foreach ($request->colors_groups as $colorIndex => $colorData) {
                     
                     foreach ($colorData['sizes'] as $sizeIndex => $sizeData) {
                         
-                        $variant = product_variant::findOrFail($sizeData['id']);
+                        $variant = null;
+                        if (!empty($sizeData['id'])) {
+                            $variant = product_variant::find($sizeData['id']);
+                        }
 
-                        $uniqueSku = $colorData['sku'] . '-' . ($sizeData['size'] ?? $sizeIndex);
+                        $baseSku = $sizeData['sku'] ?? ($colorData['sku'] . '-' . ($sizeData['size'] ?? $sizeIndex));
+                        $uniqueSizeSku = $baseSku . '-' . substr(uniqid(), -4);
+                        
+                                    if ($variant) {
+                        // استخراج الكود النظيف فقط (أخذ ما قبل أول شرطة '-' أو اعتماد النص كما هو إذا لم تكن موجودة)
+                        $inputSku = $sizeData['sku'] ?? '';
+                        $cleanBaseSku = explode('-', $inputSku)[0]; 
 
-                       $variant->update([
-                        'variant_name' => $colorData['variant_name'] ?? ($variant->variant_name ?? $product->model_name),
-                        'sku'          => $uniqueSku,
-                        'color'        => $colorData['color'] ?? $variant->color,    
-                        'size'         => $sizeData['size'] ?? $variant->size, 
-                        'cost_price'   => $colorData['cost_price'] ?? $variant->cost_price,
-                        'selling_price'=> $colorData['selling_price'] ?? $variant->selling_price, 
-                    ]);
+                        // إذا أدخل المستخدم كوداً جديداً، نستخدمه مع لاحقة جديدة، وإلا نحافظ على الـ SKU القديم تماماً كما هو بدون أي تراكم
+                        $uniqueSizeSku = (!empty($cleanBaseSku) && $cleanBaseSku !== explode('-', $variant->sku)[0])
+                            ? $cleanBaseSku . '-' . substr(uniqid(), -4)
+                            : $variant->sku;
 
-                  if (array_key_exists('quantity', $sizeData)) {
-                        inventory::where('variant_id', $variant->id)
-                            ->where('branch_id', $admin->branch_id)
-                            ->update([
-                                'quantity' => $sizeData['quantity'] 
-                            ]);
-                    }
-                                                     
-                    /* if ($request->hasFile("colors_groups.$colorIndex.images")) {
-                        foreach ($request->file("colors_groups.$colorIndex.images") as $imgFile) {
-                            $path = $imgFile->store('products/variants/gallery', 'public');
-                            $variant->variantImages()->create(['image_path' => $path]);
+                        $variant->update([
+                            'variant_name'  => $colorData['variant_name'] ?? ($variant->variant_name ?? $product->model_name),
+                            'sku'           => $uniqueSizeSku,
+                            'color'         => $colorData['color'] ?? $variant->color,    
+                            'size'          => $sizeData['size'] ?? $variant->size, 
+                            'cost_price'    => $sizeData['cost_price'] ?? $variant->cost_price,
+                            'selling_price' => $sizeData['selling_price'] ?? $variant->selling_price, 
+                        ]);
+                    } else {
+                        // للمقاسات الجديدة كلياً
+                        $baseSku = $sizeData['sku'] ?? ($sizeData['size'] ?? $sizeIndex);
+                        $cleanBaseSku = explode('-', $baseSku)[0];
+                        $uniqueSizeSku = $cleanBaseSku . '-' . substr(uniqid(), -4);
+
+                        $variant = $product->variants()->create([
+                            'variant_name'  => $colorData['variant_name'] ?? $product->model_name,
+                            'sku'           => $uniqueSizeSku, 
+                            'color'         => $colorData['color'] ?? null,
+                            'size'          => $sizeData['size'] ?? null,
+                            'cost_price'    => $sizeData['cost_price'] ?? 0,
+                            'selling_price' => $sizeData['selling_price'] ?? 0, 
+                        ]);
+                    }       if (array_key_exists('quantity', $sizeData)) {
+                            inventory::updateOrCreate(
+                                [
+                                    'variant_id' => $variant->id,
+                                    'branch_id'  => $admin->branch_id
+                                ],
+                                [
+                                    'quantity' => $sizeData['quantity'] 
+                                ]
+                            );
                         }
                     }
-                    */ // 
-                    }
                 }
-
                 return response()->json(['message' => 'تم تحديث الموديلات بنجاح'], 200);
             });
         } catch (\Exception $e) {
@@ -342,17 +362,16 @@ public function filter(Request $request)
 
         
     
-    if ($request->filled('color')) {
-        $query->where('color', $request->color);
-    }
+    // if ($request->filled('color')) {
+    //     $query->where('color', $request->color);
+    // }
 
     if ($request->filled('size')) {
         $query->where('size', $request->size);
     }
 
-    if ($request->filled('sku')) {
-        $query->where('sku', $request->sku);
-    }
+ if ($request->filled('sku')) {
+        $query->where('sku', 'LIKE', $request->sku . '-%');    }
 
     if($request->filled('cost_price')) {
         $query->where('cost_price', $request->cost_price);
@@ -367,8 +386,7 @@ public function filter(Request $request)
         $searchTerm = $request->search;
         $query->where(function ($q) use ($searchTerm) {
             $q->where('variant_name', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('sku', 'LIKE', "%{$searchTerm}%")
-              ->orWhere('color', 'LIKE', "%{$searchTerm}%")
+            ->orWhere('sku', 'LIKE', $searchTerm . '-%')            //   ->orWhere('color', 'LIKE', "%{$searchTerm}%")
               ->orWhere('size', 'LIKE', "%{$searchTerm}%")
               ->orWhereHas('product', function ($pq) use ($searchTerm) {
                   $pq->where('model_name', 'LIKE', "%{$searchTerm}%");
