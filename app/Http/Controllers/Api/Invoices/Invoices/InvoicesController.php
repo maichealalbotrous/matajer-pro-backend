@@ -66,6 +66,7 @@ public function getEmployeeInvoices(Request $request)
         'items.*.quantity'      => 'required|integer|min:1',
         'items.*.sold_at_price' => 'required|numeric|min:0',
         'items.*.item_notes'    => 'string|nullable',
+
     ]);
 
     $admin = Auth::user();
@@ -84,6 +85,7 @@ public function getEmployeeInvoices(Request $request)
                 'status'       => 'pending',
                 'type'         => 'sale',
                 'notes'        => $request->notes,
+                'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
             ]);
 
             foreach ($request->items as $item) {
@@ -140,7 +142,9 @@ public function returnInvoice(Request $request)
             'total_amount' => 0, 
             'status'       => 'pending',
             'type'         => 'return',
-            'notes'        => "مرتجع للفاتورة رقم: " . $originalInvoice->id,
+            'notes'        => "مرتجع للفاتورة رقم: " . $originalInvoice->id,  
+          'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
+
         ]);
 
         $totalReturnAmount = 0;
@@ -221,7 +225,9 @@ public function exchangeInvoice(Request $request)
             'total_amount' => $finalTotal, 
             'status'       => 'pending', 
             'type'         => 'exchange',
-            'notes'        => "استبدال ناتج عن الفاتورة رقم: " . $originalInvoice->id
+            'notes'        => "استبدال ناتج عن الفاتورة رقم: " . $originalInvoice->id,
+            'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
+
         ]);
 
         foreach ($request->new_items as $item) {
