@@ -180,7 +180,7 @@ public function inventoryAudit(Request $request)
             $mainQuery->whereHas('variant', function ($q) use ($searchTerm) {
                 $q->where(function($innerQuery) use ($searchTerm) {
                     $innerQuery->where('variant_name', 'LIKE', "%{$searchTerm}%")
-                               ->orWhere('sku', 'LIKE', "%{$searchTerm}%")
+                               ->orWhere('sku', 'LIKE', "%{$searchTerm}%".'-%')
                                ->orWhere('color', 'LIKE', "%{$searchTerm}%")
                                ->orWhere('size', 'LIKE', "%{$searchTerm}%");
                 })
