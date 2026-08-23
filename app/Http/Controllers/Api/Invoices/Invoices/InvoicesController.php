@@ -184,8 +184,9 @@ public function exchangeInvoice(Request $request)
             'total_amount' => $finalTotal, 
             'status'       => 'pending', 
             'type'         => 'exchange',
-            'notes'        => "استبدال ناتج عن الفاتورة رقم: " . $originalInvoice->id
-        ]);
+            'notes'        => $request->original_invoice_id,
+
+]);
 
         foreach ($request->new_items as $item) {
             $exchangeInvoice->invoiceItems()->create([

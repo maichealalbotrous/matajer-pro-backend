@@ -47,33 +47,54 @@ class ApprovedInvoicesController extends Controller
     ////////////////////////////////////////////////////////////////////////////////////////////
     /////{approve Invoice}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-    public function approveInvoice(Request $request)
-    {
-        $request->validate([
-            'invoiceId' => 'required|exists:invoices,id',
-        ]);
+public function approveAllInvoices(Request $request)
+{
+    $admin = Auth::user();
 
-        $admin = Auth::user();
+    if ($admin->role != 'admin') {
+        return response()->json(['error' => 'لا تملك صلاحية اعتماد الفواتير'], 403);
+    }
 
-        if ($admin->role != 'admin') {
-            return response()->json(['error' => 'لا تملك صلاحية اعتماد الفواتير'], 403);
-        }
+    $pendingInvoices = invoice::with('invoiceItems.variant')
+        ->where('branch_id', $admin->branch_id)
+        ->where('status', 'pending')
+        ->get();
 
-        $invoice = invoice::with('invoiceItems.variant')->findOrFail($request->invoiceId);
+    if ($pendingInvoices->isEmpty()) {
+        return response()->json(['message' => 'لا توجد فواتير معلقة بانتظار الاعتماد المالي حالياً.'], 200);
+    }
 
-        if ($invoice->status === 'approved') {
-            return response()->json(['error' => 'الفاتورة معتمدة بالفعل'], 400);
-        }
+    return DB::transaction(function () use ($pendingInvoices, $admin) {
+        $approvedCount = 0;
 
-        return DB::transaction(function () use ($invoice, $admin) {
+        foreach ($pendingInvoices as $invoice) {
             $totalCost = 0;
 
+            // حساب تكلفة الأصناف الجديدة
             foreach ($invoice->invoiceItems as $item) {
-                $totalCost += ($item->variant->cost_price * $item->quantity);
+                if ($item->variant) {
+                    $totalCost += ($item->variant->cost_price * $item->quantity);
+                }
+            }
+
+            // إذا كانت الفاتورة استبدال، نقوم بجلب الفاتورة الأصلية عبر الـ ID المخزن في notes مباشرة
+            if ($invoice->type === 'exchange' && !empty($invoice->notes)) {
+                $originalInvoiceId = $invoice->notes; // الـ ID مخزن مباشرة هنا
+                $originalInvoice = Invoice::with('invoiceItems.variant')->find($originalInvoiceId);
+
+                if ($originalInvoice) {
+                    $originalCost = 0;
+                    foreach ($originalInvoice->invoiceItems as $origItem) {
+                        if ($origItem->variant) {
+                            $originalCost += ($origItem->variant->cost_price * $origItem->quantity);
+                        }
+                    }
+                    // صافي التكلفة = تكلفة الأصناف الجديدة - تكلفة الأصناف المرتجعة
+                    $totalCost = $totalCost - $originalCost;
+                }
             }
 
             $multiplier = ($invoice->type === 'return') ? -1 : 1;
-
             $grossProfit = $invoice->total_amount * $multiplier;
             $netProfit = ($invoice->total_amount - $totalCost) * $multiplier;
 
@@ -87,14 +108,15 @@ class ApprovedInvoicesController extends Controller
             ]);
 
             $invoice->update(['status' => 'approved']);
+            $approvedCount++;
+        }
 
-            return response()->json([
-                'message' => 'تم الاعتماد المالي بنجاح',
-                'net_profit' => $netProfit
-            ]);
-        });
-    }
-
+        return response()->json([
+            'success' => true,
+            'message' => "تم الاعتماد الجماعي بنجاح! تم ترحيل واحتساب أرباح ({$approvedCount}) فاتورة بنجاح."
+        ]);
+    });
+}
   ////////////////////////////////////////////////////////////////////////////////////////////
     /////{revertApproval Invoice}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
