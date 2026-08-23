@@ -142,7 +142,7 @@ public function returnInvoice(Request $request)
             'total_amount' => 0, 
             'status'       => 'pending',
             'type'         => 'return',
-            'notes'        => "مرتجع للفاتورة رقم: " . $originalInvoice->id,  
+            'notes'        => $request->original_invoice_id,
           'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
 
         ]);
