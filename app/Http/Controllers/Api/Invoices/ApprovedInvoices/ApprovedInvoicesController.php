@@ -17,7 +17,7 @@ class ApprovedInvoicesController extends Controller
     ////////////////////////////////////////////////////////////////////////////////////////////
     /////{Index Invoice according to Status}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-  public function index(Request $request)
+public function index(Request $request)
 {
     $admin = Auth::user();
 
@@ -25,11 +25,40 @@ class ApprovedInvoicesController extends Controller
         return response()->json(['error' => 'لا تملك صلاحية عرض الفواتير'], 403);
     }
 
+    // 💡 التحقق من صحة البيانات باستخدام validate
+    $validated = $request->validate([
+        'period' => 'nullable|in:today,weekly,monthly,yearly',
+        'status' => 'nullable|string'
+    ]);
+
+    $period = $validated['period'] ?? null;
+    $status = $validated['status'] ?? null;
+
     $query = invoice::with(['user:id,name', 'settlement'])
         ->where('branch_id', $admin->branch_id);
 
-    if ($request->has('status')) {
-        $query->where('status', $request->status);
+    if ($status) {
+        $query->where('status', $status);
+    }
+
+    if ($period) {
+        switch ($period) {
+            case 'today':
+                $query->whereDate('created_at', Carbon::today());
+                break;
+            case 'weekly':
+                $start = Carbon::now()->startOfWeek();
+                $end = Carbon::now()->endOfWeek();
+                $query->whereBetween('created_at', [$start, $end]);
+                break;
+            case 'monthly':
+                $query->whereMonth('created_at', Carbon::now()->month)
+                      ->whereYear('created_at', Carbon::now()->year);
+                break;
+            case 'yearly':
+                $query->whereYear('created_at', Carbon::now()->year);
+                break;
+        }
     }
 
     $invoices = $query->orderBy('created_at', 'desc')->get();
@@ -43,155 +72,208 @@ class ApprovedInvoicesController extends Controller
         ],
         'data' => $invoices
     ]);
-}
-    
-    ////////////////////////////////////////////////////////////////////////////////////////////
+}    ////////////////////////////////////////////////////////////////////////////////////////////
     /////{approve Invoice}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
 public function approveInvoice(Request $request)
-    {
-        $admin = Auth::user();
+{
+    $admin = Auth::user();
 
-        if ($admin->role != 'admin') {
-            return response()->json(['error' => 'لا تملك صلاحية اعتماد الفواتير'], 403);
-        }
-
-        $pendingInvoices = invoice::with('invoiceItems.variant')
-            ->where('branch_id', $admin->branch_id)
-            ->where('status', 'pending')
-            ->get();
-
-        if ($pendingInvoices->isEmpty()) {
-            return response()->json(['message' => 'لا توجد فواتير معلقة بانتظار الاعتماد المالي حالياً.'], 200);
-        }
-
-        return DB::transaction(function () use ($pendingInvoices, $admin) {
-            $approvedCount = 0;
-            $netProfit = 0; // لتعريف المتغير وتجنب أي خطأ في الـ scope
-
-            foreach ($pendingInvoices as $invoice) {
-                $totalCost = 0;
-
-                // حساب تكلفة الأصناف الجديدة
-                foreach ($invoice->invoiceItems as $item) {
-                    if ($item->variant) {
-                        $totalCost += ($item->variant->cost_price * $item->quantity);
-                    }
-                }
-
-                // 💡 معالجة فواتير الاستبدال (exchange) وحساب صافي التكلفة بدقة
-                if ($invoice->type === 'exchange' && !empty($invoice->notes)) {
-                    $originalInvoiceId = $invoice->notes; 
-                    $originalInvoice = Invoice::with('invoiceItems.variant')->find($originalInvoiceId);
-
-                    if ($originalInvoice) {
-                        $originalCost = 0;
-                        foreach ($originalInvoice->invoiceItems as $origItem) {
-                            if ($origItem->variant) {
-                                $originalCost += ($origItem->variant->cost_price * $origItem->quantity);
-                            }
-                        }
-                        // صافي التكلفة = تكلفة الأصناف الجديدة - تكلفة الأصناف المرتجعة القديمة
-                        $totalCost = $totalCost - $originalCost;
-                    }
-                }
-
-                $multiplier = ($invoice->type === 'return') ? -1 : 1;
-                $grossProfit = $invoice->total_amount * $multiplier;
-                $netProfit = ($invoice->total_amount - $totalCost) * $multiplier;
-
-                settlement::create([
-                    'branch_id'       => $invoice->branch_id,
-                    'invoice_id'      => $invoice->id,
-                    'gross_profit'    => $grossProfit,
-                    'net_profit'      => $netProfit,
-                    'approved_by'     => $admin->id,
-                    'settlement_date' => now(),
-                ]);
-
-                $invoice->update(['status' => 'approved']);
-                $approvedCount++;
-            }
-
-            return response()->json([
-                'message' => 'تم الاعتماد المالي بنجاح',
-                'net_profit' => $netProfit
-            ]);
-        });
+    if ($admin->role != 'admin') {
+        return response()->json(['error' => 'لا تملك صلاحية اعتماد الفواتير'], 403);
     }
 
+    // 💡 التحقق من استقبال الـ invoiceId في الطلب كما طلبت
+    $validated = $request->validate([
+        'invoiceId' => 'required|exists:invoices,id',
+    ]);
+
+    $invoice = Invoice::with('invoiceItems.variant')->findOrFail($validated['invoiceId']);
+
+    if ($invoice->status !== 'pending') {
+        return response()->json(['error' => 'هذه الفاتورة معتمدة مسبقاً أو غير صالحة للاعتماد'], 400);
+    }
+
+    return DB::transaction(function () use ($invoice, $admin) {
+        $totalCost = 0;
+
+        foreach ($invoice->invoiceItems as $item) {
+            if ($item->variant) {
+                $totalCost += ($item->variant->cost_price * $item->quantity);
+            }
+        }
+
+        $isRefund = false;
+
+        if ($invoice->type === 'exchange' && !empty($invoice->notes)) {
+            $originalInvoiceId = $invoice->notes; 
+            $originalInvoice = Invoice::with('invoiceItems.variant')->find($originalInvoiceId);
+
+            if ($originalInvoice) {
+                $originalCost = 0;
+                foreach ($originalInvoice->invoiceItems as $origItem) {
+                    if ($origItem->variant) {
+                        $originalCost += ($origItem->variant->cost_price * $origItem->quantity);
+                    }
+                }
+
+                $newItemsValue = $invoice->invoiceItems->sum(fn($i) => $i->sold_at_price * $i->quantity);
+                $returnedItemsValue = $originalInvoice->invoiceItems->sum(fn($i) => $i->sold_at_price * $i->quantity);
+                $rawDiff = $newItemsValue - $returnedItemsValue;
+
+                if ($rawDiff < 0) {
+                    $isRefund = true;
+                }
+
+                $totalCost = $totalCost - $originalCost;
+            }
+        }
+
+        $effectiveAmount = $isRefund ? -abs($invoice->total_amount) : abs($invoice->total_amount);
+        $multiplier = ($invoice->type === 'return') ? -1 : 1;
+
+        if ($invoice->type === 'exchange') {
+            $grossProfit = $effectiveAmount;
+            $netProfit = $effectiveAmount - $totalCost;
+        } else {
+            $grossProfit = $invoice->total_amount * $multiplier;
+            $netProfit = ($invoice->total_amount - $totalCost) * $multiplier;
+        }
+
+        Settlement::create([
+            'branch_id'       => $invoice->branch_id,
+            'invoice_id'      => $invoice->id,
+            'gross_profit'    => $grossProfit,
+            'net_profit'      => $netProfit,
+            'approved_by'     => $admin->id,
+            'settlement_date' => now(),
+        ]);
+
+        $invoice->update(['status' => 'approved']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم الاعتماد المالي بنجاح',
+            'net_profit' => $netProfit
+        ]);
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////
     /////{💡 approve ALL pending Invoices - اعتماد الكل}/////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-    public function approveAllInvoices(Request $request)
-    {
-        $admin = Auth::user();
+ public function approveAllInvoices(Request $request)
+{
+    $admin = Auth::user();
 
-        if ($admin->role != 'admin') {
-            return response()->json(['error' => 'لا تملك صلاحية اعتماد الفواتير'], 403);
+    if ($admin->role != 'admin') {
+        return response()->json(['error' => 'لا تملك صلاحية اعتماد الفواتير'], 403);
+    }
+
+    $validated = $request->validate([
+        'period' => 'nullable|in:today,weekly,monthly,yearly',
+    ]);
+
+    $period = $validated['period'] ?? null;
+
+    $query = Invoice::with('invoiceItems.variant')
+        ->where('branch_id', $admin->branch_id)
+        ->where('status', 'pending');
+
+    if ($period) {
+        switch ($period) {
+            case 'today':
+                $query->whereDate('created_at', Carbon::today());
+                break;
+            case 'weekly':
+                $start = Carbon::now()->startOfWeek();
+                $end = Carbon::now()->endOfWeek();
+                $query->whereBetween('created_at', [$start, $end]);
+                break;
+            case 'monthly':
+                $query->whereMonth('created_at', Carbon::now()->month)
+                      ->whereYear('created_at', Carbon::now()->year);
+                break;
+            case 'yearly':
+                $query->whereYear('created_at', Carbon::now()->year);
+                break;
         }
+    }
 
-        $pendingInvoices = invoice::with('invoiceItems.variant')
-            ->where('branch_id', $admin->branch_id)
-            ->where('status', 'pending')
-            ->get();
+    $pendingInvoices = $query->get();
 
-        if ($pendingInvoices->isEmpty()) {
-            return response()->json(['message' => 'لا توجد فواتير معلقة بانتظار الاعتماد المالي حالياً.'], 200);
-        }
+    if ($pendingInvoices->isEmpty()) {
+        return response()->json(['message' => 'لا توجد فواتير معلقة ضمن هذه الفترة بانتظار الاعتماد المالي حالياً.'], 200);
+    }
 
-        return DB::transaction(function () use ($pendingInvoices, $admin) {
-            $approvedCount = 0;
+    return DB::transaction(function () use ($pendingInvoices, $admin) {
+        $approvedCount = 0;
 
-            foreach ($pendingInvoices as $invoice) {
-                $totalCost = 0;
+        foreach ($pendingInvoices as $invoice) {
+            $totalCost = 0;
 
-                foreach ($invoice->invoiceItems as $item) {
-                    if ($item->variant) {
-                        $totalCost += ($item->variant->cost_price * $item->quantity);
-                    }
+            foreach ($invoice->invoiceItems as $item) {
+                if ($item->variant) {
+                    $totalCost += ($item->variant->cost_price * $item->quantity);
                 }
-
-                // 💡 معالجة فواتير الاستبدال (exchange) وحساب صافي التكلفة بدقة في الاعتماد الجماعي أيضاً
-                if ($invoice->type === 'exchange' && !empty($invoice->notes)) {
-                    $originalInvoiceId = $invoice->notes; 
-                    $originalInvoice = Invoice::with('invoiceItems.variant')->find($originalInvoiceId);
-
-                    if ($originalInvoice) {
-                        $originalCost = 0;
-                        foreach ($originalInvoice->invoiceItems as $origItem) {
-                            if ($origItem->variant) {
-                                $originalCost += ($origItem->variant->cost_price * $origItem->quantity);
-                            }
-                        }
-                        $totalCost = $totalCost - $originalCost;
-                    }
-                }
-
-                $multiplier = ($invoice->type === 'return') ? -1 : 1;
-                $grossProfit = $invoice->total_amount * $multiplier;
-                $netProfit = ($invoice->total_amount - $totalCost) * $multiplier;
-
-                settlement::create([
-                    'branch_id'       => $invoice->branch_id,
-                    'invoice_id'      => $invoice->id,
-                    'gross_profit'    => $grossProfit,
-                    'net_profit'      => $netProfit,
-                    'approved_by'     => $admin->id,
-                    'settlement_date' => now(),
-                ]);
-
-                $invoice->update(['status' => 'approved']);
-                $approvedCount++;
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => "تم الاعتماد الجماعي بنجاح! تم ترحيل واحتساب أرباح ({$approvedCount}) فاتورة بنجاح."
+            $isRefund = false;
+
+            if ($invoice->type === 'exchange' && !empty($invoice->notes)) {
+                $originalInvoiceId = $invoice->notes; 
+                $originalInvoice = Invoice::with('invoiceItems.variant')->find($originalInvoiceId);
+
+                if ($originalInvoice) {
+                    $originalCost = 0;
+                    foreach ($originalInvoice->invoiceItems as $origItem) {
+                        if ($origItem->variant) {
+                            $originalCost += ($origItem->variant->cost_price * $origItem->quantity);
+                        }
+                    }
+
+                    $newItemsValue = $invoice->invoiceItems->sum(fn($i) => $i->sold_at_price * $i->quantity);
+                    $returnedItemsValue = $originalInvoice->invoiceItems->sum(fn($i) => $i->sold_at_price * $i->quantity);
+                    $rawDiff = $newItemsValue - $returnedItemsValue;
+
+                    if ($rawDiff < 0) {
+                        $isRefund = true;
+                    }
+
+                    $totalCost = $totalCost - $originalCost;
+                }
+            }
+
+            $effectiveAmount = $isRefund ? -abs($invoice->total_amount) : abs($invoice->total_amount);
+            $multiplier = ($invoice->type === 'return') ? -1 : 1;
+
+            if ($invoice->type === 'exchange') {
+                $grossProfit = $effectiveAmount;
+                $netProfit = $effectiveAmount - $totalCost;
+            } else {
+                $grossProfit = $invoice->total_amount * $multiplier;
+                $netProfit = ($invoice->total_amount - $totalCost) * $multiplier;
+            }
+
+            Settlement::create([
+                'branch_id'       => $invoice->branch_id,
+                'invoice_id'      => $invoice->id,
+                'gross_profit'    => $grossProfit,
+                'net_profit'      => $netProfit,
+                'approved_by'     => $admin->id,
+                'settlement_date' => now(),
             ]);
-        });
-    }
+
+            $invoice->update(['status' => 'approved']);
+            $approvedCount++;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "تم الاعتماد الجماعي بنجاح! تم ترحيل واعتماد ({$approvedCount}) فاتورة للفترة المحددة."
+        ]);
+    });
+}
     
   ////////////////////////////////////////////////////////////////////////////////////////////
     /////{revertApproval Invoice}///////////////////////////////////////////////////////////////////////////////

@@ -300,29 +300,29 @@ public function inventoryAudit(Request $request)
     ////////////////////////////////////////////////////////////////////////////////////////////
     /////{delete Settlements}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-    public function delete(Request $request)
-    {
-        $request->validate([
-            'id'=>'required|exists:settlements,id'
-        ]);
+    // public function delete(Request $request)
+    // {
+    //     $request->validate([
+    //         'id'=>'required|exists:settlements,id'
+    //     ]);
         
-        $admin = Auth::user();
+    //     $admin = Auth::user();
 
-           if($admin->role !== 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'غير مصرح لك بالدخول إلى البيانات المالية'
-            ], 403);
-        }
+    //        if($admin->role !== 'admin') {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'غير مصرح لك بالدخول إلى البيانات المالية'
+    //         ], 403);
+    //     }
         
-        $settlement = settlement::where('branch_id', $admin->branch_id)->findOrFail($request->id);
-        $settlement->delete();
+    //     $settlement = settlement::where('branch_id', $admin->branch_id)->findOrFail($request->id);
+    //     $settlement->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'تم حذف التسوية بنجاح'
-        ]);
-    }
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'تم حذف التسوية بنجاح'
+    //     ]);
+    // }
 
 
         ////////////////////////////////////////////////////////////////////////////////////////////

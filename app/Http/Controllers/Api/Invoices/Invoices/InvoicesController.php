@@ -30,6 +30,7 @@ public function getEmployeeInvoices(Request $request)
     $formattedInvoices = $invoices->map(function($invoice) {
         return [
             'id' => $invoice->id,
+            'type' => $invoice->type, 
             'total_amount' => $invoice->total_amount ?? $invoice->total,
             'notes' => $invoice->notes,
             'created_at' => $invoice->created_at->format('Y-m-d H:i'),
@@ -84,7 +85,7 @@ public function getEmployeeInvoices(Request $request)
                 'total_amount' => $calculatedTotal,
                 'status'       => 'pending',
                 'type'         => 'sale',
-                'notes'        => $request->notes,
+                'notes'        => $request->notes .'فاتورة مبيعات مباشرة',
                 'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
             ]);
 
@@ -142,7 +143,7 @@ public function returnInvoice(Request $request)
             'total_amount' => 0, 
             'status'       => 'pending',
             'type'         => 'return',
-            'notes'        => $request->original_invoice_id,
+            'notes'        =>  'فاتورة مرتجعة من '.$request->original_invoice_id ,
           'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
 
         ]);
@@ -205,8 +206,6 @@ public function exchangeInvoice(Request $request)
                 ->increment('quantity', $item['quantity']);
         }
 
-
-        //new invoices and invoisces_Items 
         $totalNewValue = 0;
         foreach ($request->new_items as $item) {
             $totalNewValue += ($item['sold_at_price'] * $item['quantity']);
@@ -216,18 +215,16 @@ public function exchangeInvoice(Request $request)
                 ->decrement('quantity', $item['quantity']);
         }
 
-       
         $finalTotal = $totalNewValue - $totalReturnedValue;
 
         $exchangeInvoice = Invoice::create([
             'branch_id'    => $admin->branch_id,
             'user_id'      => $admin->id,
-            'total_amount' => $finalTotal, 
+            'total_amount' => abs($finalTotal), // ✅ دائماً قيمة موجبة ومنطقية للأدمن
             'status'       => 'pending', 
             'type'         => 'exchange',
-            'notes'        => $request->original_invoice_id, 
-            'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
-
+            'notes'        => $request->original_invoice_id, // نخزن فقط رقم الفاتورة الأصلية
+            'invoice_date' => now()->format('Y-m-d'),
         ]);
 
         foreach ($request->new_items as $item) {
@@ -239,8 +236,10 @@ public function exchangeInvoice(Request $request)
             ]);
         }
 
+        $msg = $finalTotal >= 0 ? 'المبلغ المطلوب إضافياً من الزبون: ' : 'المبلغ المراد إرجاعه للزبون: ';
+
         return response()->json([
-            'message' => 'تمت العملية، المبلغ المطلوب من الزبون (أو له): ' . $finalTotal,
+            'message' => 'تمت العملية بنجاح. ' . $msg . abs($finalTotal),
             'invoice_id' => $exchangeInvoice->id
         ]);
     });
