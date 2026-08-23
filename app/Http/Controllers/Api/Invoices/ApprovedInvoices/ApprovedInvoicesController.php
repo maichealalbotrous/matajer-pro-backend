@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Invoices\ApprovedInvoices;
 
 use App\Http\Controllers\Controller;
+use App\Models\inventory;
 use App\Models\invoice;
 use App\Models\settlement;
 use App\Models\User;
@@ -253,4 +254,88 @@ $request->validate([
         'data' => $invoice
     ]);
 }
+
+
+  ////////////////////////////////////////////////////////////////////////////////////////////
+    /////{delete Invoice}///////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    
+
+    public function deleteInvoice(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|exists:invoices,id',
+        ]);
+
+        $admin = Auth::user();
+
+        if ($admin->role != 'admin') {
+            return response()->json(['error' => 'لا تملك صلاحية حذف الفواتير'], 403);
+        }
+
+        $invoice = invoice::with('invoiceItems')->where('branch_id', $admin->branch_id)->findOrFail($request->id);
+
+        return DB::transaction(function () use ($invoice) {
+            
+            // 1. إعادة الكميات إلى المخزون بناءً على نوع الفاتورة
+            foreach ($invoice->invoiceItems as $item) {
+                $inventory = inventory::where('branch_id', $invoice->branch_id)
+                    ->where('variant_id', $item->variant_id)
+                    ->first();
+
+                if ($inventory) {
+                    if ($invoice->type === 'sale') {
+                        // فاتورة بيع: عند الحذف، نعيد الكمية المباعة للمخزون
+                        $inventory->increment('quantity', $item->quantity);
+                    } 
+                    elseif ($invoice->type === 'return') {
+                        // فاتورة مرتجع: عند الحذف، نسحب الكمية المرتجعة من المخزون
+                        $inventory->decrement('quantity', $item->quantity);
+                    }
+                    elseif ($invoice->type === 'exchange') {
+                        // فاتورة استبدال: الأصناف الموجودة في فاتورة الاستبدال هي أصناف خرجت للعميل (بيع جديد)، 
+                        // فعند الحذف نعيدها للمخزون.
+                        $inventory->increment('quantity', $item->quantity);
+                    }
+                }
+            }
+
+            // 💡 إذا كانت فاتورة استبدال مرتبطة بفاتورة قديمة وتم إرجاع أصناف قديمة للمخزون وقتها،
+            // يجب علينا أيضاً عكس تأثير الأصناف المرتجعة القديمة!
+            if ($invoice->type === 'exchange' && !empty($invoice->notes)) {
+                $originalInvoiceId = $invoice->notes;
+                $originalInvoice = Invoice::with('invoiceItems')->find($originalInvoiceId);
+
+                if ($originalInvoice) {
+                    foreach ($originalInvoice->invoiceItems as $origItem) {
+                        $origInventory = Inventory::where('branch_id', $invoice->branch_id)
+                            ->where('variant_id', $origItem->variant_id)
+                            ->first();
+
+                        if ($origInventory) {
+                            // الأصناف القديمة التي دخلت المخزون وقت الاستبدال، عند حذف الاستبدال يجب سحبها مرة أخرى
+                            $origInventory->decrement('quantity', $origItem->quantity);
+                        }
+                    }
+                }
+            }
+
+            // 2. إذا كانت الفاتورة معتمدة، نحذف التسوية المالية المرتبطة بها
+            if ($invoice->status === 'approved') {
+                settlement::where('invoice_id', $invoice->id)->delete();
+            }
+
+            // 3. حذف عناصر الفاتورة
+            $invoice->invoiceItems()->delete();
+
+            // 4. حذف الفاتورة نهائياً
+            $invoice->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم حذف الفاتورة، ضبط المخزون بدقة، وتحديث الحسابات المالية بنجاح.'
+            ]);
+        });
+    }
 }
