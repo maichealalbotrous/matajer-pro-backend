@@ -12,7 +12,30 @@ use Illuminate\Http\Request;
 class BranchController extends Controller
 {
 
-   
+   public function index()
+    {
+        $user = Auth::user();
+
+        if ($user->role !== 'admin') {
+            return response()->json([
+                'message' => 'هذا الإجراء مخصص فقط لمديري الفروع'
+            ], 403);
+        }
+
+        $branch = branche::find($user->branch_id);
+
+        if (!$branch) {
+            return response()->json([
+                'message' => 'لم يتم العثور على فرع مرتبط بحسابك'
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $branch
+        ]);
+    }
+
     public function store(Request $request)
     {
        $request->validate([

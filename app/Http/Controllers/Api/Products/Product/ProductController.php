@@ -20,11 +20,7 @@ class ProductController extends Controller
 {
     $admin = Auth::user();
 
-    if ($admin->role != 'admin') {
-        return response()->json(['error' => 'غير مسموح لك للقيام بهذه العملية'], 403);
-    }
-
-    $products = product::with(['variants.variantImages', 'variants.inventories'])
+    $products = product::with(['variants', 'variants.inventories'])
         ->where('branch_id', $admin->branch_id)
         ->get();
 
@@ -52,9 +48,9 @@ class ProductController extends Controller
                             'quantity' => $v->inventories->sum('quantity'),
                         ];
                     })->values(),
-                    'images'       => $variants->flatMap->variantImages->pluck('image_path')->unique()->map(function ($path) {
-                        return asset('storage/' . $path);
-                    })->values(),
+                    // 'images'       => $variants->flatMap->variantImages->pluck('image_path')->unique()->map(function ($path) {
+                    //     return asset('storage/' . $path);
+                    // })->values(),
                 ];
             })->values(),
         ];
@@ -73,7 +69,7 @@ class ProductController extends Controller
         $request->validate([
             'model_name'   => 'required|string|max:255',
             'model_number' => 'nullable|string',
-            'image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            /* 'image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048', */ // تهميش التحقق من الصورة
         ]);
 
        $admin = Auth::user();
@@ -81,15 +77,16 @@ class ProductController extends Controller
             return response()->json(['error' => 'غير مسموح لك للقيام بهذه العملية'], 403);
         }
         try {
-            $mainImagePath = null;
-            if ($request->hasFile('image')) {
+            // $mainImagePath = null;
+            /* if ($request->hasFile('image')) {
                 $mainImagePath = $request->file('image')->store('products/main', 'public');
             }
+            */ // 
 
             $product = product::create([
                 'model_name'   => $request->model_name,
                 'model_number' => $request->model_number,
-                'image'        => $mainImagePath,
+                // 'image'        => $mainImagePath, //  null حالياً
                 'branch_id'    => $admin->branch_id,
             ]);
 
@@ -114,7 +111,7 @@ class ProductController extends Controller
             'id'           => 'required|integer|exists:products,id',
             'model_name'   => 'required|string|max:255',
             'model_number' => 'nullable|string',
-            'image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            /* 'image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048', */ // تهميش التحقق من الصورة
         ]);
 
         $product = product::findOrFail($request->id);
@@ -126,17 +123,18 @@ class ProductController extends Controller
         }
         
         try {
-            if ($request->hasFile('image')) {
+            /* if ($request->hasFile('image')) {
                 if ($product->image) {
                     Storage::disk('public')->delete($product->image);
                 }
                 $product->image = $request->file('image')->store('products/main', 'public');
             }
+            */ // 
 
             $product->update([
                 'model_name'   => $request->model_name,
                 'model_number' => $request->model_number,
-                'image'        => $product->image,
+                // 'image'        => $product->image,
             ]);
 
             return response()->json(['message' => 'تم تحديث بيانات المنتج بنجاح', 'product' => $product]);

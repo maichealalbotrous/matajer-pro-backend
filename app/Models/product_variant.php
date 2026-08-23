@@ -19,11 +19,11 @@ class product_variant extends Model
 
     protected static function booted()
 {
-    static::deleting(function ($variant) {
-        foreach ($variant->variantImages as $image) {
-            Storage::disk('public')->delete($image->image_path);
-        }
-    });
+    // static::deleting(function ($variant) {
+    //     foreach ($variant->variantImages as $image) {
+    //         Storage::disk('public')->delete($image->image_path);
+    //     }
+    // });
 }
 
     public function product()
@@ -36,10 +36,10 @@ class product_variant extends Model
         return $this->hasMany(inventory::class, 'variant_id');
     }
 
-    public function variantImages()
-    {
-        return $this->hasMany(variant_images::class, 'variant_id');
-    }
+    // public function variantImages()
+    // {
+    //     return $this->hasMany(variant_images::class, 'variant_id');
+    // }
 
     public function invoiceItems()
     {

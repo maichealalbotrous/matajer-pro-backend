@@ -14,8 +14,45 @@ use Illuminate\Support\Facades\DB;
 class InvoicesController extends Controller
 {
 
+public function getEmployeeInvoices(Request $request)
+{
+    $user = Auth::user();
 
+    $invoices = invoice::with('invoiceItems.variant.product')
+        ->where('branch_id', $user->branch_id)
+        ->where('user_id', $user->id)
+        ->latest() 
+        ->get();
 
+    $totalSales = $invoices->where('type', 'sale')->sum('total_amount'); // عدل الحقول بناءً على مسميات قاعدة بياناتك
+    $totalReturns = $invoices->where('type', 'return')->count();
+
+    $formattedInvoices = $invoices->map(function($invoice) {
+        return [
+            'id' => $invoice->id,
+            'total_amount' => $invoice->total_amount ?? $invoice->total,
+            'notes' => $invoice->notes,
+            'created_at' => $invoice->created_at->format('Y-m-d H:i'),
+            'items' => $invoice->invoiceItems->map(function($item) {
+                return [
+                    'variant_id' => $item->variant_id,
+                    'quantity' => $item->quantity,
+                    'sold_at_price' => $item->sold_at_price,
+                    'variant_name' => ($item->variant->product->name ?? $item->variant->variant_name) . ' - ' . ($item->variant->size ?? '')
+                ];
+            })
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'statistics' => [
+            'total_sales' => $totalSales,
+            'total_returns' => $totalReturns,
+        ],
+        'data' => $formattedInvoices
+    ], 200);
+}
 ////////////////////////////////////////////////////////////////////////////////////////////
 /////{storeInvoice function}///////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -29,6 +66,7 @@ class InvoicesController extends Controller
         'items.*.quantity'      => 'required|integer|min:1',
         'items.*.sold_at_price' => 'required|numeric|min:0',
         'items.*.item_notes'    => 'string|nullable',
+
     ]);
 
     $admin = Auth::user();
@@ -47,6 +85,7 @@ class InvoicesController extends Controller
                 'status'       => 'pending',
                 'type'         => 'sale',
                 'notes'        => $request->notes,
+                'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
             ]);
 
             foreach ($request->items as $item) {
@@ -103,7 +142,9 @@ public function returnInvoice(Request $request)
             'total_amount' => 0, 
             'status'       => 'pending',
             'type'         => 'return',
-            'notes'        => "مرتجع للفاتورة رقم: " . $originalInvoice->id,
+            'notes'        => "مرتجع للفاتورة رقم: " . $originalInvoice->id,  
+          'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
+
         ]);
 
         $totalReturnAmount = 0;
@@ -184,10 +225,11 @@ public function exchangeInvoice(Request $request)
             'total_amount' => $finalTotal, 
             'status'       => 'pending', 
             'type'         => 'exchange',
-            'notes'        => $request->original_invoice_id,
+
+            'notes'        => "استبدال ناتج عن الفاتورة رقم: " . $originalInvoice->id,
             'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
 
-]);
+        ]);
 
         foreach ($request->new_items as $item) {
             $exchangeInvoice->invoiceItems()->create([

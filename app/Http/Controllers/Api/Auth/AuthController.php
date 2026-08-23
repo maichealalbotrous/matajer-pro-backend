@@ -100,4 +100,31 @@ public function login(Request $request)
         'is_active'  => true
     ]);
 }
+
+
+public function logout(Request $request)
+{
+    try {
+        if ($request->user()) {
+            $request->user()->currentAccessToken()->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم تسجيل الخروج بنجاح وإبطال الجلسة.'
+            ], 200);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'المستخدم غير مسجل الدخول أو التوكن غير صالح.'
+        ], 401);
+
+    } catch (\Exception $error) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء محاولة تسجيل الخروج.',
+            'error' => $error->getMessage()
+        ], 500);
+    }
+}
 }

@@ -47,7 +47,7 @@ class ApprovedInvoicesController extends Controller
     ////////////////////////////////////////////////////////////////////////////////////////////
     /////{approve Invoice}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////
-public function approveAllInvoices(Request $request)
+public function approveInvoices(Request $request)
 {
     $admin = Auth::user();
 
@@ -111,12 +111,74 @@ public function approveAllInvoices(Request $request)
             $approvedCount++;
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => "تم الاعتماد الجماعي بنجاح! تم ترحيل واحتساب أرباح ({$approvedCount}) فاتورة بنجاح."
-        ]);
-    });
-}
+
+            return response()->json([
+                'message' => 'تم الاعتماد المالي بنجاح',
+                'net_profit' => $netProfit
+            ]);
+        });
+    }
+
+    
+////////////////////////////////////////////////////////////////////////////////////////////
+    /////{💡 approve ALL pending Invoices - اعتماد الكل}/////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    public function approveAllInvoices(Request $request)
+    {
+        $admin = Auth::user();
+
+        if ($admin->role != 'admin') {
+            return response()->json(['error' => 'لا تملك صلاحية اعتماد الفواتير'], 403);
+        }
+
+        $pendingInvoices = invoice::with('invoiceItems.variant')
+            ->where('branch_id', $admin->branch_id)
+            ->where('status', 'pending')
+            ->get();
+
+        if ($pendingInvoices->isEmpty()) {
+            return response()->json(['message' => 'لا توجد فواتير معلقة بانتظار الاعتماد المالي حالياً.'], 200);
+        }
+
+        return DB::transaction(function () use ($pendingInvoices, $admin) {
+            $approvedCount = 0;
+
+            foreach ($pendingInvoices as $invoice) {
+                $totalCost = 0;
+
+                foreach ($invoice->invoiceItems as $item) {
+                    if ($item->variant) {
+                        $totalCost += ($item->variant->cost_price * $item->quantity);
+                    }
+                }
+
+                $multiplier = ($invoice->type === 'return') ? -1 : 1;
+                $grossProfit = $invoice->total_amount * $multiplier;
+                $netProfit = ($invoice->total_amount - $totalCost) * $multiplier;
+
+                settlement::create([
+                    'branch_id'       => $invoice->branch_id,
+                    'invoice_id'      => $invoice->id,
+                    'gross_profit'    => $grossProfit,
+                    'net_profit'      => $netProfit,
+                    'approved_by'     => $admin->id,
+                    'settlement_date' => now(),
+                ]);
+
+                $invoice->update(['status' => 'approved']);
+                $approvedCount++;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "تم الاعتماد الجماعي بنجاح! تم ترحيل واحتساب أرباح ({$approvedCount}) فاتورة بنجاح."
+            ]);
+        });
+    }
+
+
+
+    
   ////////////////////////////////////////////////////////////////////////////////////////////
     /////{revertApproval Invoice}///////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////

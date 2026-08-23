@@ -20,7 +20,7 @@ return new class extends Migration
         $table->enum('status', ['pending', 'approved'])->default('pending');
         $table->enum('type', ['sale', 'return', 'exchange'])->default('sale');
         $table->text('notes')->nullable(); 
-        $table->date('invoice_date')->default(Carbon::parse(now())->format('Y/m/d'),);
+        $table->date('invoice_date')->nullable();
         $table->timestamps();
         });
     }

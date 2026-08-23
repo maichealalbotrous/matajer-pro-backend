@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('model_number')->nullable();
             $table->string('model_name');
-            $table->string('image')->nullable();
+            // $table->string('image')->nullable();
             $table->foreignId('branch_id')
             ->constrained('branches')
             ->cascadeOnDelete()

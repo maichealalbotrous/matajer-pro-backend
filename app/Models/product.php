@@ -10,16 +10,16 @@ class product extends Model
     protected $fillable = [
         'model_number',
         'model_name',
-        'image',
+        // 'image',
         'branch_id',
     ];
 
     protected static function booted()
 {
     static::deleting(function ($product) {
-        if ($product->image) {
-            Storage::disk('public')->delete($product->image);
-        }
+        // if ($product->image) {
+        //     Storage::disk('public')->delete($product->image);
+        // }
 
         foreach ($product->variants as $variant) {
             $variant->delete(); 

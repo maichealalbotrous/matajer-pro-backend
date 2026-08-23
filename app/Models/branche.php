@@ -53,4 +53,9 @@ class branche extends Model
     {
         return $this->hasMany(expense::class, 'branch_id');
     }
+
+    public function paymentLogs()
+    {
+        return $this->hasMany(payment_log::class, 'branch_id');
+    }
 }

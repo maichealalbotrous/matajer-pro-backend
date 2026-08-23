@@ -65,4 +65,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(settlement::class, 'approved_by');
     }
+
+    public function systemLogs()
+    {
+        return $this->hasMany(system_log::class, 'user_id');
+    }
 }
