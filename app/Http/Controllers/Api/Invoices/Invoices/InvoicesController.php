@@ -185,6 +185,7 @@ public function exchangeInvoice(Request $request)
             'status'       => 'pending', 
             'type'         => 'exchange',
             'notes'        => $request->original_invoice_id,
+            'invoice_date' => now()->format('Y-m-d'), // ✅ التاريخ الحقيقي وقت إصدار الفاتورة فعلياً
 
 ]);
 
